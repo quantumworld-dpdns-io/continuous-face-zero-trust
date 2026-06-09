@@ -1,440 +1,141 @@
-openapi: 3.1.0
+openapi: "3.1.0"
 info:
-  title: PQC Crypto Service API
-  description: Post-Quantum Cryptography API for CFZT system
-  version: 1.0.0
-  contact:
-    name: API Support
-    email: api@cfzt.io
-
+  title: PQC Crypto Service
+  version: "0.1.0"
+  description: Continuous Face Zero Trust — Post-Quantum Cryptography
 servers:
-  - url: https://api.cfzt.io
-    description: Production server
-  - url: https://staging-api.cfzt.io
-    description: Staging server
-  - url: http://localhost:8087
-    description: Local development server
+  - url: http://localhost:8006
 
 paths:
-  /api/v1/crypto/kem/encapsulate:
+  /api/v1/pqc/algorithms:
+    get:
+      summary: List supported PQC algorithms
+      operationId: listAlgorithms
+      responses:
+        "200":
+          description: Supported algorithms
+
+  /api/v1/pqc/kem/encapsulate:
     post:
-      summary: KEM encapsulate
-      description: Encapsulate shared secret using Key Encapsulation Mechanism
+      summary: Encapsulate key (Kyber)
       operationId: kemEncapsulate
-      tags:
-        - KEM
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/KEMEncapsulateRequest'
+              type: object
+              properties:
+                public_key:
+                  type: string
+                  format: byte
+                algorithm:
+                  type: string
+                  enum: [KYBER_512, KYBER_768, KYBER_1024]
+                  default: KYBER_768
       responses:
-        '200':
-          description: Encapsulation successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/KEMEncapsulateResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+        "200":
+          description: Ciphertext + shared secret
 
-  /api/v1/crypto/kem/decapsulate:
+  /api/v1/pqc/kem/decapsulate:
     post:
-      summary: KEM decapsulate
-      description: Decapsulate shared secret using Key Encapsulation Mechanism
+      summary: Decapsulate key
       operationId: kemDecapsulate
-      tags:
-        - KEM
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/KEMDecapsulateRequest'
+              type: object
+              properties:
+                ciphertext:
+                  type: string
+                  format: byte
+                secret_key:
+                  type: string
+                  format: byte
+                algorithm:
+                  type: string
       responses:
-        '200':
-          description: Decapsulation successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/KEMDecapsulateResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+        "200":
+          description: Shared secret
 
-  /api/v1/crypto/sign:
+  /api/v1/pqc/sign:
     post:
       summary: Sign message
-      description: Sign message using post-quantum signature
       operationId: sign
-      tags:
-        - Signatures
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SignRequest'
+              type: object
+              properties:
+                message:
+                  type: string
+                  format: byte
+                secret_key:
+                  type: string
+                  format: byte
+                algorithm:
+                  type: string
+                  enum: [DILITHIUM_2, DILITHIUM_3, DILITHIUM_5, FALCON_512, FALCON_1024]
       responses:
-        '200':
-          description: Signing successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SignResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+        "200":
+          description: Signature
 
-  /api/v1/crypto/verify:
+  /api/v1/pqc/verify:
     post:
       summary: Verify signature
-      description: Verify post-quantum signature
-      operationId: verify
-      tags:
-        - Signatures
+      operationId: verifySignature
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VerifyRequest'
+              type: object
+              properties:
+                message:
+                  type: string
+                  format: byte
+                signature:
+                  type: string
+                  format: byte
+                public_key:
+                  type: string
+                  format: byte
+                algorithm:
+                  type: string
       responses:
-        '200':
+        "200":
           description: Verification result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VerifyResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                type: object
+                properties:
+                  valid:
+                    type: boolean
 
-  /api/v1/crypto/encrypt:
+  /api/v1/pqc/encrypt:
     post:
-      summary: Encrypt data
-      description: Encrypt data using hybrid encryption
+      summary: Encrypt with hybrid PQC
       operationId: encrypt
-      tags:
-        - Encryption
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/EncryptRequest'
+              type: object
+              properties:
+                plaintext:
+                  type: string
+                  format: byte
+                public_key:
+                  type: string
+                  format: byte
+                algorithm:
+                  type: string
       responses:
-        '200':
-          description: Encryption successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EncryptResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /api/v1/crypto/decrypt:
-    post:
-      summary: Decrypt data
-      description: Decrypt data using hybrid decryption
-      operationId: decrypt
-      tags:
-        - Encryption
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DecryptRequest'
-      responses:
-        '200':
-          description: Decryption successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DecryptResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /api/v1/crypto/algorithms:
-    get:
-      summary: Get supported algorithms
-      description: Get list of supported PQC algorithms
-      operationId: getAlgorithms
-      tags:
-        - Algorithms
-      responses:
-        '200':
-          description: Supported algorithms
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AlgorithmsResponse'
-
-components:
-  schemas:
-    KEMEncapsulateRequest:
-      type: object
-      required:
-        - algorithm
-      properties:
-        algorithm:
-          type: string
-          enum:
-            - kyber-512
-            - kyber-768
-            - kyber-1024
-          description: KEM algorithm
-        public_key:
-          type: string
-          format: byte
-          description: Base64 encoded public key (optional, uses default if not provided)
-
-    KEMEncapsulateResponse:
-      type: object
-      properties:
-        ciphertext:
-          type: string
-          format: byte
-          description: Base64 encoded ciphertext
-        shared_secret:
-          type: string
-          format: byte
-          description: Base64 encoded shared secret
-        algorithm:
-          type: string
-          description: Algorithm used
-
-    KEMDecapsulateRequest:
-      type: object
-      required:
-        - algorithm
-        - ciphertext
-      properties:
-        algorithm:
-          type: string
-          enum:
-            - kyber-512
-            - kyber-768
-            - kyber-1024
-          description: KEM algorithm
-        ciphertext:
-          type: string
-          format: byte
-          description: Base64 encoded ciphertext
-        private_key:
-          type: string
-          format: byte
-          description: Base64 encoded private key (optional, uses default if not provided)
-
-    KEMDecapsulateResponse:
-      type: object
-      properties:
-        shared_secret:
-          type: string
-          format: byte
-          description: Base64 encoded shared secret
-        algorithm:
-          type: string
-          description: Algorithm used
-
-    SignRequest:
-      type: object
-      required:
-        - algorithm
-        - message
-      properties:
-        algorithm:
-          type: string
-          enum:
-            - dilithium-2
-            - dilithium-3
-            - dilithium-5
-            - falcon-512
-            - falcon-1024
-          description: Signature algorithm
-        message:
-          type: string
-          format: byte
-          description: Base64 encoded message
-        private_key:
-          type: string
-          format: byte
-          description: Base64 encoded private key (optional, uses default if not provided)
-
-    SignResponse:
-      type: object
-      properties:
-        signature:
-          type: string
-          format: byte
-          description: Base64 encoded signature
-        algorithm:
-          type: string
-          description: Algorithm used
-
-    VerifyRequest:
-      type: object
-      required:
-        - algorithm
-        - message
-        - signature
-      properties:
-        algorithm:
-          type: string
-          enum:
-            - dilithium-2
-            - dilithium-3
-            - dilithium-5
-            - falcon-512
-            - falcon-1024
-          description: Signature algorithm
-        message:
-          type: string
-          format: byte
-          description: Base64 encoded message
-        signature:
-          type: string
-          format: byte
-          description: Base64 encoded signature
-        public_key:
-          type: string
-          format: byte
-          description: Base64 encoded public key (optional, uses default if not provided)
-
-    VerifyResponse:
-      type: object
-      properties:
-        valid:
-          type: boolean
-          description: Whether signature is valid
-        algorithm:
-          type: string
-          description: Algorithm used
-
-    EncryptRequest:
-      type: object
-      required:
-        - algorithm
-        - plaintext
-      properties:
-        algorithm:
-          type: string
-          enum:
-            - hybrid-kyber-aes
-            - hybrid-kyber-chacha
-          description: Encryption algorithm
-        plaintext:
-          type: string
-          format: byte
-          description: Base64 encoded plaintext
-        public_key:
-          type: string
-          format: byte
-          description: Base64 encoded public key (optional, uses default if not provided)
-
-    EncryptResponse:
-      type: object
-      properties:
-        ciphertext:
-          type: string
-          format: byte
-          description: Base64 encoded ciphertext
-        nonce:
-          type: string
-          format: byte
-          description: Base64 encoded nonce
-        algorithm:
-          type: string
-          description: Algorithm used
-
-    DecryptRequest:
-      type: object
-      required:
-        - algorithm
-        - ciphertext
-        - nonce
-      properties:
-        algorithm:
-          type: string
-          enum:
-            - hybrid-kyber-aes
-            - hybrid-kyber-chacha
-          description: Encryption algorithm
-        ciphertext:
-          type: string
-          format: byte
-          description: Base64 encoded ciphertext
-        nonce:
-          type: string
-          format: byte
-          description: Base64 encoded nonce
-        private_key:
-          type: string
-          format: byte
-          description: Base64 encoded private key (optional, uses default if not provided)
-
-    DecryptResponse:
-      type: object
-      properties:
-        plaintext:
-          type: string
-          format: byte
-          description: Base64 encoded plaintext
-        algorithm:
-          type: string
-          description: Algorithm used
-
-    AlgorithmsResponse:
-      type: object
-      properties:
-        kem:
-          type: array
-          items:
-            type: string
-          description: Supported KEM algorithms
-        signatures:
-          type: array
-          items:
-            type: string
-          description: Supported signature algorithms
-        encryption:
-          type: array
-          items:
-            type: string
-          description: Supported encryption algorithms
-
-    Error:
-      type: object
-      properties:
-        code:
-          type: string
-          description: Error code
-        message:
-          type: string
-          description: Error message
-        details:
-          type: object
-          description: Error details
+        "200":
+          description: Ciphertext
