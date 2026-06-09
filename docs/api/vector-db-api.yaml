@@ -1,0 +1,217 @@
+openapi: 3.1.0
+info:
+  title: Vector DB Service API
+  description: Vector Database API for CFZT system
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: api@cfzt.io
+
+servers:
+  - url: https://api.cfzt.io
+    description: Production server
+  - url: https://staging-api.cfzt.io
+    description: Staging server
+  - url: http://localhost:8091
+    description: Local development server
+
+paths:
+  /api/v1/vector/upsert:
+    post:
+      summary: Upsert embedding
+      description: Insert or update face embedding
+      operationId: upsertEmbedding
+      tags:
+        - Embeddings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertRequest'
+      responses:
+        '200':
+          description: Upsert successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpsertResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/vector/search:
+    post:
+      summary: Search embeddings
+      description: Search for similar face embeddings
+      operationId: searchEmbeddings
+      tags:
+        - Search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/vector/delete:
+    post:
+      summary: Delete embedding
+      description: Delete face embedding
+      operationId: deleteEmbedding
+      tags:
+        - Embeddings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteRequest'
+      responses:
+        '200':
+          description: Delete successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    UpsertRequest:
+      type: object
+      required:
+        - id
+        - vector
+      properties:
+        id:
+          type: string
+          description: Embedding ID
+        vector:
+          type: array
+          items:
+            type: number
+            format: float
+          description: Embedding vector
+        payload:
+          type: object
+          description: Additional metadata
+        collection:
+          type: string
+          description: Collection name (default: face_embeddings)
+
+    UpsertResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Upsert successful
+        id:
+          type: string
+          description: Embedding ID
+
+    SearchRequest:
+      type: object
+      required:
+        - vector
+      properties:
+        vector:
+          type: array
+          items:
+            type: number
+            format: float
+          description: Query vector
+        limit:
+          type: integer
+          description: Maximum results
+          default: 10
+        threshold:
+          type: number
+          format: float
+          description: Similarity threshold
+          default: 0.8
+        filter:
+          type: object
+          description: Filter conditions
+        collection:
+          type: string
+          description: Collection name (default: face_embeddings)
+
+    SearchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+          description: Search results
+        total:
+          type: integer
+          description: Total results
+
+    SearchResult:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Embedding ID
+        score:
+          type: number
+          format: float
+          description: Similarity score
+        payload:
+          type: object
+          description: Additional metadata
+
+    DeleteRequest:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: Embedding ID
+        collection:
+          type: string
+          description: Collection name (default: face_embeddings)
+
+    DeleteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Delete successful
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Error details
