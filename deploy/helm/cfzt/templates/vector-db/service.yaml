@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cfzt.fullname" . }}-vector-db
+  namespace: {{ include "cfzt.namespace" . }}
+  labels:
+    {{- include "cfzt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vector-database
+spec:
+  type: {{ .Values.vectorDb.service.type | default "ClusterIP" }}
+  selector:
+    {{- include "cfzt.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: vector-database
+  ports:
+    - name: http
+      port: {{ .Values.vectorDb.service.port | default 8008 }}
+      targetPort: http
+      protocol: TCP
