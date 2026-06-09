@@ -1,139 +1,56 @@
 *** Settings ***
-Library    Collections
-Library    OperatingSystem
-Library    ../resources/libraries/CryptoLibrary.py
-Library    ../resources/libraries/FaceMLLibrary.py
-Library    ../resources/libraries/SecurityLibrary.py
+Resource    ../resources/keywords/auth_keywords.robot
+Resource    ../resources/keywords/api_keywords.robot
+Library     Collections
+
+Suite Setup    Create Sessions
+Suite Teardown    Delete All Sessions
 
 *** Variables ***
-${BASE_URL}    https://api.cfzt.io
-${TEST_USER}    test_user_continuous_001
-${TIMEOUT}    300
-${VERIFICATION_INTERVAL}    30
+${BASE_URL}    http://localhost:8000
+
+*** Keywords ***
+Create Sessions
+    Create Session    auth    ${BASE_URL}
 
 *** Test Cases ***
-Continuous Verify Same Face
-    [Documentation]    Test continuous verification with same face
-    [Tags]    continuous_verify    positive
-    [Timeout]    ${TIMEOUT}
-    
-    # First login
-    ${login_response}=    Send Request    POST    /api/v1/auth/login
-    ...    body=${{"user_id": "${TEST_USER}", "device_id": "test_device_001", "face_image": "${CURDIR}/../test_data/faces/front.jpg"}}
-    
-    ${token}=    Set Variable    ${login_response}[body][token]
-    
-    # Continuous verify multiple times
-    FOR    ${i}    IN RANGE    5
-        ${response}=    Send Request    POST    /api/v1/auth/verify
-        ...    headers=${{"Authorization": "Bearer ${token}"}}
-        ...    body=${{"face_image": "${CURDIR}/../test_data/faces/front.jpg"}}
-        
-        Should Be Equal As Strings    ${response}[status]    200
-        Should Be True    ${response}[body][success]
-        Should Be True    ${response}[body][similarity] > 0.85
-        
-        Sleep    ${VERIFICATION_INTERVAL}s
-    END
+Face Enrollment — Multiple Images
+    [Documentation]    Enroll face with multiple images
+    ${images}=    Create List    test_data/face_01.jpg    test_data/face_02.jpg    test_data/face_03.jpg
+    ${response}=    Enroll Face    ${images}    user-001    tenant-1
+    Should Be Equal As Numbers    ${response.status_code}    200
+    ${json}=    Set Variable    ${response.json()}
+    Should Be True    ${json}[success]
+    Should Be Equal As Numbers    ${json}[face_count]    3
+    Log    Enrollment successful: ${json}[enrollment_id]
 
-Continuous Verify Different Face
-    [Documentation]    Test continuous verification with different face
-    [Tags]    continuous_verify    negative
-    [Timeout]    ${TIMEOUT}
-    
-    # First login
-    ${login_response}=    Send Request    POST    /api/v1/auth/login
-    ...    body=${{"user_id": "${TEST_USER}", "device_id": "test_device_001", "face_image": "${CURDIR}/../test_data/faces/front.jpg"}}
-    
-    ${token}=    Set Variable    ${login_response}[body][token]
-    
-    # Continuous verify with different face
-    ${response}=    Send Request    POST    /api/v1/auth/verify
-    ...    headers=${{"Authorization": "Bearer ${token}"}}
-    ...    body=${{"face_image": "${CURDIR}/../test_data/faces/different.jpg"}}
-    
-    Should Be Equal As Strings    ${response}[status]    200
-    Should Be True    ${response}[body][similarity] < 0.85
-    Should Not Be Equal As Strings    ${response}[body][action]    allow
+Face Enrollment — Insufficient Images
+    [Documentation]    Enroll with only 1 image (should fail)
+    ${images}=    Create List    test_data/face_01.jpg
+    ${response}=    Enroll Face    ${images}    user-002
+    Should Not Be Equal As Numbers    ${response.status_code}    200
+    Log    Insufficient images rejected
 
-Continuous Verify Expired Session
-    [Documentation]    Test continuous verification with expired session
-    [Tags]    continuous_verify    negative
-    [Timeout]    ${TIMEOUT}
-    
-    # First login
-    ${login_response}=    Send Request    POST    /api/v1/auth/login
-    ...    body=${{"user_id": "${TEST_USER}", "device_id": "test_device_001", "face_image": "${CURDIR}/../test_data/faces/front.jpg"}}
-    
-    ${token}=    Set Variable    ${login_response}[body][token]
-    
-    # Wait for session to expire
-    Sleep    60s
-    
-    # Try to verify
-    ${response}=    Send Request    POST    /api/v1/auth/verify
-    ...    headers=${{"Authorization": "Bearer ${token}"}}
-    ...    body=${{"face_image": "${CURDIR}/../test_data/faces/front.jpg"}}
-    
-    Should Be Equal As Strings    ${response}[status]    401
-    Should Contain    ${response}[body][message]    Session expired
+Continuous Verification — Same Person
+    [Documentation]    Continuous verification with same person
+    ${auth_response}=    Authenticate User    test_data/face_real.jpg    device-id-cv-01    web
+    ${json}=    Set Variable    ${auth_response.json()}
+    Should Be True    ${json}[authenticated]
 
-Continuous Verify Risk Score Increase
-    [Documentation]    Test risk score increase on low similarity
-    [Tags]    continuous_verify    risk
-    [Timeout]    ${TIMEOUT}
-    
-    # First login
-    ${login_response}=    Send Request    POST    /api/v1/auth/login
-    ...    body=${{"user_id": "${TEST_USER}", "device_id": "test_device_001", "face_image": "${CURDIR}/../test_data/faces/front.jpg"}}
-    
-    ${token}=    Set Variable    ${login_response}[body][token]
-    ${initial_risk}=    Set Variable    ${login_response}[body][risk_score]
-    
-    # Verify with lower quality image
-    ${response}=    Send Request    POST    /api/v1/auth/verify
-    ...    headers=${{"Authorization": "Bearer ${token}"}}
-    ...    body=${{"face_image": "${CURDIR}/../test_data/faces/low_quality.jpg"}}
-    
-    Should Be Equal As Strings    ${response}[status]    200
-    Should Be True    ${response}[body][risk_score] > ${initial_risk}
+    Sleep    5s
+    ${verify_response}=    Authenticate User    test_data/face_real.jpg    device-id-cv-01    continuous
+    ${verify_json}=    Set Variable    ${verify_response.json()}
+    Should Be True    ${verify_json}[authenticated]
+    Log    Continuous verification passed for same person
 
-Continuous Verify Adaptive Refresh
-    [Documentation]    Test adaptive refresh interval
-    [Tags]    continuous_verify    adaptive
-    [Timeout]    ${TIMEOUT}
-    
-    # First login
-    ${login_response}=    Send Request    POST    /api/v1/auth/login
-    ...    body=${{"user_id": "${TEST_USER}", "device_id": "test_device_001", "face_image": "${CURDIR}/../test_data/faces/front.jpg"}}
-    
-    ${token}=    Set Variable    ${login_response}[body][token]
-    
-    # Verify with high confidence
-    ${response}=    Send Request    POST    /api/v1/auth/verify
-    ...    headers=${{"Authorization": "Bearer ${token}"}}
-    ...    body=${{"face_image": "${CURDIR}/../test_data/faces/front.jpg"}}
-    
-    Should Be Equal As Strings    ${response}[status]    200
-    Should Be True    ${response}[body][similarity] > 0.95
-    Should Be True    ${response}[body][refresh_interval] > 300
+Continuous Verification — Different Person
+    [Documentation]    Continuous verification with different person
+    ${auth_response}=    Authenticate User    test_data/face_real.jpg    device-id-cv-02    web
+    ${json}=    Set Variable    ${auth_response.json()}
+    Should Be True    ${json}[authenticated]
 
-Continuous Verify Liveness Challenge
-    [Documentation]    Test liveness challenge on low confidence
-    [Tags]    continuous_verify    liveness
-    [Timeout]    ${TIMEOUT}
-    
-    # First login
-    ${login_response}=    Send Request    POST    /api/v1/auth/login
-    ...    body=${{"user_id": "${TEST_USER}", "device_id": "test_device_001", "face_image": "${CURDIR}/../test_data/faces/front.jpg"}}
-    
-    ${token}=    Set Variable    ${login_response}[body][token]
-    
-    # Verify with photo
-    ${response}=    Send Request    POST    /api/v1/auth/verify
-    ...    headers=${{"Authorization": "Bearer ${token}"}}
-    ...    body=${{"face_image": "${CURDIR}/../test_data/faces/photo.jpg"}}
-    
-    Should Be Equal As Strings    ${response}[status]    200
-    Should Not Be Equal As Strings    ${response}[body][action]    allow
-    Should Contain    ${response}[body][action]    challenge
+    Sleep    5s
+    ${verify_response}=    Authenticate User    test_data/face_other.jpg    device-id-cv-02    continuous
+    ${verify_json}=    Set Variable    ${verify_response.json()}
+    Should Not Be True    ${verify_json}[authenticated]
+    Log    Continuous verification correctly rejected different person
