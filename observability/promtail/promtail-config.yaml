@@ -1,0 +1,171 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+positions:
+  filename: /tmp/positions.yaml
+clients:
+  - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
+    tenant_id: cfzt
+    batchwait: 1s
+    batchsize: 1048576
+    backoff_config:
+      min_period: 500ms
+      max_period: 5m
+      max_retries: 10
+    external_labels:
+      cluster: cfzt-production
+      environment: production
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values:
+              - logging=promtail
+    relabel_configs:
+      - source_labels: ["__meta_docker_container_name"]
+        regex: "/(.*)"
+        target_label: "container"
+      - source_labels: ["__meta_docker_container_log_stream"]
+        target_label: "logstream"
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
+        target_label: "service"
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_project"]
+        target_label: "project"
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_config_hash"]
+        target_label: "config_hash"
+    pipeline_stages:
+      - docker: {}
+      - regex:
+          expression: '^(?P<level>(?i)(?:trace|debug|info|warn|error|fatal|panic))(?:\s+)?(?P<msg>.*)'
+          source: "output"
+      - labels:
+          level:
+          msg:
+      - timestamp:
+          source: filename
+          format: RFC3339Nano
+  - job_name: kubernetes-pods
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - cfzt-production
+            - monitoring-production
+    relabel_configs:
+      - source_labels: ["__meta_kubernetes_pod_label_app"]
+        target_label: "app"
+      - source_labels: ["__meta_kubernetes_namespace"]
+        target_label: "namespace"
+      - source_labels: ["__meta_kubernetes_pod_name"]
+        target_label: "pod"
+      - source_labels: ["__meta_kubernetes_pod_node_name"]
+        target_label: "node"
+      - source_labels: ["__meta_kubernetes_pod_container_name"]
+        target_label: "container"
+      - source_labels: ["__meta_kubernetes_pod_label_component"]
+        target_label: "component"
+    pipeline_stages:
+      - cri: {}
+      - regex:
+          expression: '^(?P<level>(?i)(?:trace|debug|info|warn|error|fatal|panic))(?:\s+)?(?P<msg>.*)'
+      - labels:
+          level:
+          msg:
+      - timestamp:
+          source: filename
+          format: RFC3339Nano
+  - job_name: system-journal
+    journal:
+      max_age: 12h
+      labels:
+        job: systemd-journal
+    relabel_configs:
+      - source_labels: ["__journal__systemd_unit"]
+        target_label: "unit"
+      - source_labels: ["__journal__hostname"]
+        target_label: "hostname"
+      - source_labels: ["__journal_priority_keyword"]
+        target_label: "level"
+    pipeline_stages:
+      - journal: {}
+      - labels:
+          unit:
+          hostname:
+          level:
+  - job_name: nginx-access
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx-access
+          logstream: access
+          __path__: /var/log/nginx/access.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<remote_addr>[\w\.]+) - (?P<remote_user>\S+) \[(?P<time_local>.*)\] "(?P<request_method>\S+) (?P<request_uri>\S+) (?P<server_protocol>\S+)" (?P<status>\d+) (?P<body_bytes_sent>\d+) "(?P<http_referer>.*)" "(?P<http_user_agent>.*)"'
+      - labels:
+          status:
+          request_method:
+      - timestamp:
+          source: time_local
+          format: "02/Jan/2006:15:04:05 -0700"
+  - job_name: nginx-error
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx-error
+          logstream: error
+          __path__: /var/log/nginx/error.log
+    pipeline_stages:
+      - regex:
+          expression: '(?P<time_local>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[(?P<level>\w+)\] (?P<msg>.*)'
+      - labels:
+          level:
+      - timestamp:
+          source: time_local
+          format: "2006/01/02 15:04:05"
+  - job_name: face-ml-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: face-ml
+          logstream: stdout
+          __path__: /var/log/face-ml/*.log
+    pipeline_stages:
+      - multiline:
+          firstline: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+          max_wait_time: 3s
+      - regex:
+          expression: '(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s+(?P<level>(?i)(?:trace|debug|info|warn|error|fatal|panic))\s+\[(?P<component>[^\]]+)\]\s+(?P<msg>.*)'
+      - labels:
+          level:
+          component:
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+scrape_configs:
+  - job_name: security-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: security
+          logstream: security
+          __path__: /var/log/security/*.log
+    pipeline_stages:
+      - multiline:
+          firstline: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+          max_wait_time: 3s
+      - regex:
+          expression: '(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s+(?P<event_type>\w+)\s+(?P<severity>\w+)\s+(?P<msg>.*)'
+      - labels:
+          event_type:
+          severity:
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
