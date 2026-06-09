@@ -1,0 +1,56 @@
+===================================================
+  Continuous Face Zero Trust - Deployment Complete
+===================================================
+
+Release: {{ .Release.Name }}
+Namespace: {{ include "cfzt.namespace" . }}
+
+Services deployed:
+{{- if .Values.authApi.enabled }}
+  - auth-api:        http://{{ include "cfzt.fullname" . }}-auth-api:{{ .Values.authApi.service.port | default 8000 }}
+{{- end }}
+{{- if .Values.faceMl.enabled }}
+  - face-ml:         http://{{ include "cfzt.fullname" . }}-face-ml:{{ .Values.faceMl.service.port | default 8001 }}
+{{- end }}
+{{- if .Values.zkProofs.enabled }}
+  - zk-proofs:       http://{{ include "cfzt.fullname" . }}-zk-proofs:{{ .Values.zkProofs.service.port | default 8002 }}
+{{- end }}
+{{- if .Values.pqcCrypto.enabled }}
+  - pqc-crypto:      http://{{ include "cfzt.fullname" . }}-pqc-crypto:{{ .Values.pqcCrypto.service.port | default 8006 }}
+{{- end }}
+{{- if .Values.cacheStore.enabled }}
+  - cache-store:     http://{{ include "cfzt.fullname" . }}-cache-store:{{ .Values.cacheStore.service.port | default 8007 }}
+{{- end }}
+{{- if .Values.vectorDb.enabled }}
+  - vector-db:       http://{{ include "cfzt.fullname" . }}-vector-db:{{ .Values.vectorDb.service.port | default 8008 }}
+{{- end }}
+{{- if .Values.analytics.enabled }}
+  - analytics:       http://{{ include "cfzt.fullname" . }}-analytics:{{ .Values.analytics.service.port | default 8009 }}
+{{- end }}
+{{- if .Values.edgeGateway.enabled }}
+  - edge-gateway:    http://{{ include "cfzt.fullname" . }}-edge-gateway:{{ .Values.edgeGateway.service.port | default 80 }}
+{{- end }}
+
+External access:
+{{- if .Values.edgeGateway.ingress.enabled }}
+{{- range .Values.edgeGateway.ingress.hosts }}
+  https://{{ .host }}
+{{- end }}
+{{- else if eq (.Values.edgeGateway.service.type | default "LoadBalancer") "LoadBalancer" }}
+  Get the external IP:
+    kubectl get svc {{ include "cfzt.fullname" . }}-edge-gateway -n {{ include "cfzt.namespace" . }}
+{{- else if eq (.Values.edgeGateway.service.type | default "LoadBalancer") "NodePort" }}
+  Get the node port:
+    kubectl get svc {{ include "cfzt.fullname" . }}-edge-gateway -n {{ include "cfzt.namespace" . }}
+{{- end }}
+
+Monitoring:
+{{- if .Values.monitoring.prometheus.enabled }}
+  Prometheus: kubectl port-forward svc/prometheus-server -n prometheus 9090:9090
+{{- end }}
+{{- if .Values.monitoring.grafana.enabled }}
+  Grafana:    kubectl port-forward svc/grafana -n grafana 3000:3000
+{{- end }}
+
+Run tests:
+  helm test {{ .Release.Name }} -n {{ include "cfzt.namespace" . }}
