@@ -5,94 +5,32 @@ on:
     inputs:
       service:
         description: "Service to rollback"
-        required: true
         type: choice
-        options:
-          - auth-service
-          - face-ml-service
-          - quantum-rng
-          - pqc-crypto
-          - zk-proofs
-          - edge-gateway
-          - vector-db
-          - cache-store
-          - analytics
+        options: [auth-api, face-ml, zk-proofs, quantum-rng, pqc-crypto, edge-gateway, all]
       environment:
-        description: "Target environment"
-        required: true
+        description: "Environment"
         type: choice
-        options:
-          - staging
-          - production
-      version:
-        description: "Version to rollback to (leave empty for previous)"
-        required: false
+        options: [staging, production]
+      revision:
+        description: "Revision to rollback to (empty = previous)"
         type: string
-
-env:
-  REGISTRY: ghcr.io
 
 jobs:
   rollback:
-    name: Rollback Service
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
-    concurrency: rollback-${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
-          aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
-          aws-region: us-east-1
-
-      - name: Update kubeconfig
+      - name: Rollback ${{ inputs.service }}
         run: |
-          aws eks update-kubeconfig --name cfzt-${{ inputs.environment }} --region us-east-1
-
-      - name: Get previous version
-        if: inputs.version == ''
-        id: prev
-        run: |
-          PREVIOUS=$(kubectl rollout history deployment/${{ inputs.service }} -n cfzt-${{ inputs.environment }} | tail -2 | head -1 | awk '{print $1}')
-          echo "version=$PREVIOUS" >> $GITHUB_OUTPUT
-
-      - name: Rollback deployment
-        run: |
-          VERSION=${{ inputs.version || steps.prev.outputs.version }}
-          if [ -n "$VERSION" ]; then
-            kubectl rollout undo deployment/${{ inputs.service }} \
-              -n cfzt-${{ inputs.environment }} \
-              --to-revision=$VERSION
+          if [ "${{ inputs.service }}" = "all" ]; then
+            kubectl -n cfzt rollout undo deployment --all
           else
-            kubectl rollout undo deployment/${{ inputs.service }} \
-              -n cfzt-${{ inputs.environment }}
+            kubectl -n cfzt rollout undo deployment/${{ inputs.service }}
           fi
-
       - name: Verify rollback
         run: |
-          kubectl rollout status deployment/${{ inputs.service }} \
-            -n cfzt-${{ inputs.environment }} \
-            --timeout=300s
-
-      - name: Notify Slack
-        if: always()
-        uses: slackapi/slack-github-action@v1
-        with:
-          payload: |
-            {
-              "text": "Rollback ${{ job.status }}: ${{ inputs.service }} in ${{ inputs.environment }}",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "Rollback ${{ job.status }}\n*Service:* ${{ inputs.service }}\n*Environment:* ${{ inputs.environment }}\n*Version:* ${{ inputs.version || 'previous' }}\n*Actor:* ${{ github.actor }}"
-                  }
-                }
-              ]
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          kubectl -n cfzt rollout status deployment/${{ inputs.service }} --timeout=120s
+      - name: Notify
+        run: |
+          echo "Rollback of ${{ inputs.service }} in ${{ inputs.environment }} complete"
