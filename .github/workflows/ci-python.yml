@@ -1,0 +1,79 @@
+name: CI - Python Services
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "services/auth/**"
+      - "services/face-ml/**"
+      - "services/analytics/**"
+      - "packages/python/**"
+      - "tests/python/**"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "services/auth/**"
+      - "services/face-ml/**"
+      - "services/analytics/**"
+      - "packages/python/**"
+      - "tests/python/**"
+
+env:
+  PYTHON_VERSION: "3.12"
+  POETRY_VERSION: "1.7.0"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          pip install ruff mypy
+      - name: Run ruff
+        run: ruff check services/ packages/python/ tests/python/
+      - name: Run mypy
+        run: mypy services/ packages/python/
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          pip install -e "packages/python[dev]"
+      - name: Run tests
+        run: pytest tests/python/ -v --cov=packages/python --cov-report=xml
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build package
+        run: |
+          pip install build
+          python -m build --sdist --wheel packages/python/
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: packages/python/dist/
