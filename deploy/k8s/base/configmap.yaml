@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cfzt-config
+  namespace: cfzt
+data:
+  REDIS_URL: "redis://cfzt-redis:6379"
+  QDRANT_URL: "http://cfzt-qdrant:6333"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://cfzt-otel:4317"
+  QUANTUM_BACKEND: "local_simulator"
+  FACE_MATCH_THRESHOLD: "0.72"
+  LIVENESS_THRESHOLD: "0.85"
