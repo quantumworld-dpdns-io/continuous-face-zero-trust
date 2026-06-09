@@ -1,0 +1,160 @@
+name: Load Testing
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: "Test duration (seconds)"
+        required: false
+        type: string
+        default: "300"
+      virtual_users:
+        description: "Number of virtual users"
+        required: false
+        type: string
+        default: "100"
+      ramp_up:
+        description: "Ramp up time (seconds)"
+        required: false
+        type: string
+        default: "60"
+      target:
+        description: "Target service"
+        required: true
+        type: choice
+        options:
+          - all
+          - auth
+          - face-ml
+          - edge-gateway
+
+env:
+  K6_VERSION: "0.48.0"
+  BASE_URL: https://staging.cfzt.io
+
+jobs:
+  load-test-auth:
+    name: Auth Load Test
+    runs-on: ubuntu-latest
+    if: inputs.target == 'all' || inputs.target == 'auth' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install k6
+        run: |
+          curl -s https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install k6
+      - name: Run auth load test
+        run: |
+          k6 run \
+            --vus ${{ inputs.virtual_users || '100' }} \
+            --duration ${{ inputs.duration || '300' }} \
+            --ramp-up ${{ inputs.ramp_up || '60' }} \
+            --out json=reports/auth-load.json \
+            tests/load/auth-load.js
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-auth
+          path: reports/auth-load.json
+
+  load-test-face:
+    name: Face ML Load Test
+    runs-on: ubuntu-latest
+    if: inputs.target == 'all' || inputs.target == 'face-ml' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install k6
+        run: |
+          curl -s https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install k6
+      - name: Run face ML load test
+        run: |
+          k6 run \
+            --vus ${{ inputs.virtual_users || '100' }} \
+            --duration ${{ inputs.duration || '300' }} \
+            --ramp-up ${{ inputs.ramp_up || '60' }} \
+            --out json=reports/face-load.json \
+            tests/load/face-load.js
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-face
+          path: reports/face-load.json
+
+  load-test-edge:
+    name: Edge Gateway Load Test
+    runs-on: ubuntu-latest
+    if: inputs.target == 'all' || inputs.target == 'edge-gateway' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install k6
+        run: |
+          curl -s https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install k6
+      - name: Run edge gateway load test
+        run: |
+          k6 run \
+            --vus ${{ inputs.virtual_users || '100' }} \
+            --duration ${{ inputs.duration || '300' }} \
+            --ramp-up ${{ inputs.ramp_up || '60' }} \
+            --out json=reports/edge-load.json \
+            tests/load/edge-load.js
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-edge
+          path: reports/edge-load.json
+
+  generate-report:
+    name: Generate Report
+    runs-on: ubuntu-latest
+    needs: [load-test-auth, load-test-face, load-test-edge]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: reports/
+      - name: Generate load test report
+        run: |
+          echo "# Load Test Report" > report.md
+          echo "Date: $(date -u)" >> report.md
+          echo "" >> report.md
+          echo "## Configuration" >> report.md
+          echo "- Virtual Users: ${{ inputs.virtual_users || '100' }}" >> report.md
+          echo "- Duration: ${{ inputs.duration || '300' }}s" >> report.md
+          echo "- Ramp Up: ${{ inputs.ramp_up || '60' }}s" >> report.md
+          echo "" >> report.md
+          echo "## Results" >> report.md
+          # Parse k6 output and add to report
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-report
+          path: report.md
+      - name: Notify
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Load test completed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Load test completed\n*Target:* ${{ inputs.target || 'all' }}\n*VUs:* ${{ inputs.virtual_users || '100' }}\n*Duration:* ${{ inputs.duration || '300' }}s"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
