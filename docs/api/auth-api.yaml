@@ -1,388 +1,225 @@
-openapi: 3.1.0
+openapi: "3.1.0"
 info:
-  title: Auth Service API
-  description: Authentication and authorization API for CFZT system
-  version: 1.0.0
-  contact:
-    name: API Support
-    email: api@cfzt.io
-
+  title: Auth API
+  version: "0.1.0"
+  description: Continuous Face Zero Trust — Authentication Service
 servers:
-  - url: https://api.cfzt.io
-    description: Production server
-  - url: https://staging-api.cfzt.io
-    description: Staging server
-  - url: http://localhost:8081
-    description: Local development server
+  - url: http://localhost:8000
 
 paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: health
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  service:
+                    type: string
+
   /api/v1/auth/login:
     post:
-      summary: User login
-      description: Authenticate user with biometric data
+      summary: Authenticate with face
       operationId: login
-      tags:
-        - Authentication
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              type: object
+              properties:
+                face_image:
+                  type: string
+                  format: binary
+                device_id:
+                  type: string
+                platform:
+                  type: string
+                  enum: [web, mobile, desktop]
+              required: [face_image, device_id]
       responses:
-        '200':
-          description: Login successful
+        "200":
+          description: Authentication result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LoginResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
+                $ref: "#/components/schemas/AuthenticationResult"
+        "401":
           description: Authentication failed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
 
-  /api/v1/auth/enroll:
+  /api/v1/auth/continuous-verify:
     post:
-      summary: User enrollment
-      description: Enroll new user with biometric data
-      operationId: enroll
-      tags:
-        - Enrollment
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EnrollRequest'
-      responses:
-        '200':
-          description: Enrollment successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EnrollResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: User already enrolled
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /api/v1/auth/refresh:
-    post:
-      summary: Refresh token
-      description: Refresh authentication token
-      operationId: refreshToken
-      tags:
-        - Authentication
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RefreshRequest'
-      responses:
-        '200':
-          description: Token refreshed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RefreshResponse'
-        '401':
-          description: Invalid token
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /api/v1/auth/logout:
-    post:
-      summary: User logout
-      description: Invalidate session and logout user
-      operationId: logout
-      tags:
-        - Authentication
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Logout successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LogoutResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /api/v1/auth/verify:
-    post:
-      summary: Continuous verification
-      description: Verify user identity continuously
+      summary: Continuous re-verification
       operationId: continuousVerify
-      tags:
-        - Continuous Verification
-      security:
-        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                face_image:
+                  type: string
+                  format: binary
+                session_token:
+                  type: string
+              required: [face_image, session_token]
+      responses:
+        "200":
+          description: Verification decision
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  continue_session:
+                    type: boolean
+                  risk_score:
+                    $ref: "#/components/schemas/RiskScore"
+
+  /api/v1/enrollment/enroll:
+    post:
+      summary: Enroll face biometrics
+      operationId: enrollFace
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                face_images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                user_id:
+                  type: string
+                tenant_id:
+                  type: string
+                device_id:
+                  type: string
+              required: [face_images, user_id]
+      responses:
+        "200":
+          description: Enrollment result
+
+  /api/v1/tokens/refresh:
+    post:
+      summary: Refresh access token
+      operationId: refreshToken
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VerifyRequest'
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+              required: [refresh_token]
       responses:
-        '200':
-          description: Verification successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VerifyResponse'
-        '401':
-          description: Verification failed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+        "200":
+          description: New token pair
+        "401":
+          description: Invalid refresh token
 
-  /api/v1/sessions/{sessionId}:
+  /api/v1/sessions/{session_id}:
     get:
-      summary: Get session
-      description: Get session details
+      summary: Get session details
       operationId: getSession
-      tags:
-        - Sessions
-      security:
-        - bearerAuth: []
       parameters:
-        - name: sessionId
+        - name: session_id
           in: path
           required: true
           schema:
             type: string
       responses:
-        '200':
-          description: Session details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Session'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
+        "200":
+          description: Session data
+        "404":
           description: Session not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Revoke session
+      operationId: revokeSession
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session revoked
 
 components:
   schemas:
-    LoginRequest:
-      type: object
-      required:
-        - user_id
-        - device_id
-        - face_image
-      properties:
-        user_id:
-          type: string
-          description: User identifier
-        device_id:
-          type: string
-          description: Device identifier
-        face_image:
-          type: string
-          format: byte
-          description: Base64 encoded face image
-
-    LoginResponse:
+    AuthenticationResult:
       type: object
       properties:
-        token:
+        authenticated:
+          type: boolean
+        session_token:
           type: string
-          description: Authentication token
         refresh_token:
           type: string
-          description: Refresh token
-        expires_in:
-          type: integer
-          description: Token expiration in seconds
-        session_id:
-          type: string
-          description: Session identifier
-        risk_score:
-          type: number
-          format: float
-          description: Risk score (0-1)
-
-    EnrollRequest:
-      type: object
-      required:
-        - user_id
-        - device_id
-        - face_images
-      properties:
-        user_id:
-          type: string
-          description: User identifier
-        device_id:
-          type: string
-          description: Device identifier
-        face_images:
-          type: array
-          items:
-            type: string
-            format: byte
-          description: Array of base64 encoded face images
-
-    EnrollResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          description: Enrollment success
-        user_id:
-          type: string
-          description: User identifier
-        embedding_id:
-          type: string
-          description: Embedding identifier
-
-    RefreshRequest:
-      type: object
-      required:
-        - refresh_token
-      properties:
-        refresh_token:
-          type: string
-          description: Refresh token
-
-    RefreshResponse:
-      type: object
-      properties:
-        token:
-          type: string
-          description: New authentication token
-        refresh_token:
-          type: string
-          description: New refresh token
-        expires_in:
-          type: integer
-          description: Token expiration in seconds
-
-    LogoutResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          description: Logout success
-
-    VerifyRequest:
-      type: object
-      required:
-        - face_image
-      properties:
-        face_image:
-          type: string
-          format: byte
-          description: Base64 encoded face image
-
-    VerifyResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          description: Verification success
-        similarity:
-          type: number
-          format: float
-          description: Face similarity score
-        risk_score:
-          type: number
-          format: float
-          description: Risk score
-        action:
-          type: string
-          enum:
-            - allow
-            - challenge
-            - deny
-          description: Action taken
-
-    Session:
-      type: object
-      properties:
-        session_id:
-          type: string
-          description: Session identifier
-        user_id:
-          type: string
-          description: User identifier
-        device_id:
-          type: string
-          description: Device identifier
-        created_at:
-          type: string
-          format: date-time
-          description: Session creation time
         expires_at:
           type: string
           format: date-time
-          description: Session expiration time
-        risk_score:
-          type: number
-          format: float
-          description: Current risk score
-        status:
+        session_id:
           type: string
-          enum:
-            - active
-            - expired
-            - invalidated
-          description: Session status
+        risk_score:
+          $ref: "#/components/schemas/RiskScore"
+        liveness:
+          $ref: "#/components/schemas/LivenessResult"
+        zk_proof:
+          $ref: "#/components/schemas/ZKProofResult"
+        reason:
+          type: string
 
-    Error:
+    RiskScore:
       type: object
       properties:
-        code:
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+        level:
           type: string
-          description: Error code
-        message:
-          type: string
-          description: Error message
-        details:
-          type: object
-          description: Error details
+          enum: [low, medium, high, critical]
+        factors:
+          type: array
+          items:
+            type: string
 
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: PASETO
+    LivenessResult:
+      type: object
+      properties:
+        passed:
+          type: boolean
+        confidence:
+          type: number
+        check_scores:
+          type: object
+        failed_checks:
+          type: array
+          items:
+            type: string
+
+    ZKProofResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        proof:
+          type: string
+          format: byte
+        circuit_id:
+          type: string
