@@ -1,0 +1,18 @@
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = [
+  "E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM",
+  "PTH", "RUF", "S", "BLE", "FBT", "COM", "DJ", "DTZ",
+  "T20", "RET", "SLF", "TCH", "ARG", "PTH", "ERA", "PD",
+  "PL", "TRY", "Q", "ANN", "ASYNC", "TID", "TCH", "UP",
+]
+ignore = ["ANN101", "ANN102", "COM812", "D100", "D104"]
+
+[lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "ARG"]
+"__init__.py" = ["F401"]
+
+[lint.isort]
+known-first-party = ["cfzt"]
