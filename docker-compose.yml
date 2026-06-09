@@ -1,0 +1,249 @@
+services:
+  # ── Auth API (Python/FastAPI) ──
+  auth-api:
+    build:
+      context: .
+      dockerfile: docker/python.Dockerfile
+    ports:
+      - "8000:8000"
+      - "50051:50051"
+    environment:
+      - SERVICE_NAME=auth-api
+      - REDIS_URL=redis://redis:6379
+      - QDRANT_URL=http://qdrant:6333
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    depends_on:
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    networks:
+      - cfzt-net
+
+  # ── Face ML (Python/ONNX) ──
+  face-ml:
+    build:
+      context: .
+      dockerfile: docker/python.Dockerfile
+    ports:
+      - "8001:8001"
+      - "50052:50052"
+    environment:
+      - SERVICE_NAME=face-ml
+      - MODEL_PATH=/models
+      - QDRANT_URL=http://qdrant:6333
+    volumes:
+      - face-models:/models
+    networks:
+      - cfzt-net
+
+  # ── ZK Proofs (Rust) ──
+  zk-proofs:
+    build:
+      context: .
+      dockerfile: docker/rust.Dockerfile
+    ports:
+      - "8002:8002"
+      - "50053:50053"
+    environment:
+      - SERVICE_NAME=zk-proofs
+    networks:
+      - cfzt-net
+
+  # ── Quantum RNG ──
+  quantum-rng:
+    build:
+      context: .
+      dockerfile: docker/quantum.Dockerfile
+    ports:
+      - "8003:8003"
+      - "50054:50054"
+    environment:
+      - SERVICE_NAME=quantum-rng
+      - QUANTUM_BACKEND=local_simulator
+    networks:
+      - cfzt-net
+
+  # ── Quantum Key Exchange ──
+  quantum-key-exchange:
+    build:
+      context: .
+      dockerfile: docker/quantum.Dockerfile
+    ports:
+      - "8004:8004"
+    environment:
+      - SERVICE_NAME=quantum-key-exchange
+      - QUANTUM_BACKEND=local_simulator
+    networks:
+      - cfzt-net
+
+  # ── Quantum ML ──
+  quantum-ml:
+    build:
+      context: .
+      dockerfile: docker/quantum.Dockerfile
+    ports:
+      - "8005:8005"
+    environment:
+      - SERVICE_NAME=quantum-ml
+    networks:
+      - cfzt-net
+
+  # ── PQC Crypto ──
+  pqc-crypto:
+    build:
+      context: .
+      dockerfile: docker/python.Dockerfile
+    ports:
+      - "8006:8006"
+      - "50055:50055"
+    environment:
+      - SERVICE_NAME=pqc-crypto
+      - PQC_ALGORITHMS=kyber,dilithium,falcon
+    networks:
+      - cfzt-net
+
+  # ── Cache Store (Redis/DragonflyDB) ──
+  cache-store:
+    build:
+      context: .
+      dockerfile: docker/python.Dockerfile
+    ports:
+      - "8007:8007"
+    environment:
+      - SERVICE_NAME=cache-store
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - cfzt-net
+
+  # ── Vector DB Service ──
+  vector-db:
+    build:
+      context: .
+      dockerfile: docker/python.Dockerfile
+    ports:
+      - "8008:8008"
+    environment:
+      - SERVICE_NAME=vector-db
+      - QDRANT_URL=http://qdrant:6333
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    networks:
+      - cfzt-net
+
+  # ── Analytics ──
+  analytics:
+    build:
+      context: .
+      dockerfile: docker/python.Dockerfile
+    ports:
+      - "8009:8009"
+    environment:
+      - SERVICE_NAME=analytics
+    networks:
+      - cfzt-net
+
+  # ── Edge Gateway (TypeScript/Cloudflare) ──
+  edge-gateway:
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+    ports:
+      - "8787:8787"
+    environment:
+      - SERVICE_NAME=edge-gateway
+      - AUTH_API_URL=http://auth-api:8000
+      - FACE_ML_URL=http://face-ml:8001
+    depends_on:
+      - auth-api
+      - face-ml
+    networks:
+      - cfzt-net
+
+  # ── Infrastructure Services ──
+  redis:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.25.0
+    ports:
+      - "6379:6379"
+    command: --maxmemory=512mb --maxmemory-policy=allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - cfzt-net
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.2
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - cfzt-net
+
+  # ── OpenTelemetry Collector ──
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.100.0
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8888:8888"
+    volumes:
+      - ./observability/otel/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+    networks:
+      - cfzt-net
+
+  # ── Prometheus ──
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - cfzt-net
+
+  # ── Grafana ──
+  grafana:
+    image: grafana/grafana:10.4.2
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - cfzt-net
+
+  # ── Jaeger ──
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    ports:
+      - "16686:16686"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - cfzt-net
+
+volumes:
+  face-models:
+  qdrant-data:
+  grafana-data:
+
+networks:
+  cfzt-net:
+    driver: bridge
