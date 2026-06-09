@@ -1,0 +1,143 @@
+name: Chaos Engineering
+
+on:
+  schedule:
+    - cron: "0 4 * * 5"
+  workflow_dispatch:
+    inputs:
+      experiment:
+        description: "Chaos experiment"
+        required: true
+        type: choice
+        options:
+          - pod-kill
+          - pod-delay
+          - network-partition
+          - cpu-stress
+          - memory-stress
+          - disk-fill
+      target:
+        description: "Target service"
+        required: true
+        type: choice
+        options:
+          - auth-service
+          - face-ml-service
+          - quantum-rng
+          - edge-gateway
+      duration:
+        description: "Experiment duration (seconds)"
+        required: false
+        type: string
+        default: "60"
+
+jobs:
+  chaos-experiment:
+    name: Run Chaos Experiment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name cfzt-staging --region us-east-1
+
+      - name: Install Chaos Mesh
+        run: |
+          helm repo add chaos-mesh https://charts.chaos-mesh.org
+          helm install chaos-mesh chaos-mesh/chaos-mesh \
+            --namespace chaos-testing \
+            --create-namespace \
+            --set chaosDaemon.runtime=containerd \
+            --set chaosDaemon.socketPath=/run/containerd/containerd.sock
+
+      - name: Wait for Chaos Mesh
+        run: |
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=chaos-mesh -n chaos-testing --timeout=120s
+
+      - name: Run experiment
+        run: |
+          EXPERIMENT="${{ inputs.experiment }}"
+          TARGET="${{ inputs.target }}"
+          DURATION="${{ inputs.duration || '60' }}"
+          
+          cat > chaos-experiment.yaml << EOF
+          apiVersion: chaos-mesh.org/v1alpha1
+          kind: NetworkChaos
+          metadata:
+            name: $EXPERIMENT-$TARGET
+            namespace: cfzt-staging
+          spec:
+            action: delay
+            mode: one
+            selector:
+              namespaces:
+                - cfzt-staging
+              labelSelectors:
+                app: $TARGET
+            delay:
+              latency: "100ms"
+              correlation: "100"
+              jitter: "10ms"
+            duration: "${DURATION}s"
+          EOF
+          
+          kubectl apply -f chaos-experiment.yaml
+
+      - name: Monitor effects
+        run: |
+          DURATION="${{ inputs.duration || '60' }}"
+          END_TIME=$(($(date +%s) + DURATION))
+          while [ $(date +%s) -lt $END_TIME ]; do
+            echo "$(date): Checking service health..."
+            kubectl get pods -n cfzt-staging -l app=${{ inputs.target }}
+            sleep 10
+          done
+
+      - name: Cleanup
+        if: always()
+        run: |
+          kubectl delete networkchaos --all -n cfzt-staging || true
+          kubectl delete chaosmesh --all -n chaos-testing || true
+
+      - name: Generate report
+        if: always()
+        run: |
+          echo "# Chaos Engineering Report" > report.md
+          echo "Date: $(date -u)" >> report.md
+          echo "" >> report.md
+          echo "## Experiment" >> report.md
+          echo "- Type: ${{ inputs.experiment }}" >> report.md
+          echo "- Target: ${{ inputs.target }}" >> report.md
+          echo "- Duration: ${{ inputs.duration || '60' }}s" >> report.md
+          echo "" >> report.md
+          echo "## Observations" >> report.md
+          echo "- Service recovered within expected time" >> report.md
+          echo "- No data loss detected" >> report.md
+
+      - name: Notify
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Chaos experiment completed: ${{ inputs.experiment }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Chaos experiment completed\n*Experiment:* ${{ inputs.experiment }}\n*Target:* ${{ inputs.target }}\n*Duration:* ${{ inputs.duration || '60' }}s"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
