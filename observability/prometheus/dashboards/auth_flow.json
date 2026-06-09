@@ -1,0 +1,102 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "datasource": "Prometheus",
+        "enable": true,
+        "expr": "rate(cfzt_auth_attempts_total[5m])",
+        "name": "Auth Attempts",
+        "titleFormat": "Auth Rate"
+      }
+    ]
+  },
+  "description": "Authentication flow metrics",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Auth Request Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(cfzt_auth_attempts_total[5m])",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "title": "Auth Latency P99",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, rate(cfzt_auth_duration_seconds_bucket[5m]))",
+          "legendFormat": "P99",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.50, rate(cfzt_auth_duration_seconds_bucket[5m]))",
+          "legendFormat": "P50",
+          "refId": "B"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "title": "Active Sessions",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "cfzt_active_sessions",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8}
+    },
+    {
+      "title": "Liveness Pass Rate",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "rate(cfzt_liveness_pass_total[5m]) / rate(cfzt_liveness_total[5m])",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8}
+    },
+    {
+      "title": "Face Match Rate",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "rate(cfzt_face_match_total{match=\"true\"}[5m]) / rate(cfzt_face_match_total[5m])",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8}
+    },
+    {
+      "title": "Risk Score Distribution",
+      "type": "histogram",
+      "targets": [
+        {
+          "expr": "cfzt_risk_score_bucket",
+          "legendFormat": "{{le}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 8}
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["cfzt", "auth"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "title": "CFZT Authentication",
+  "uid": "cfzt-auth"
+}

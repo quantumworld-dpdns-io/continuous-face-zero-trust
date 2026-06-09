@@ -1,0 +1,35 @@
+name: Quantum Experiment
+description: Track quantum computing experiments
+labels: ["quantum", "experiment"]
+body:
+  - type: input
+    id: experiment-name
+    attributes:
+      label: Experiment Name
+      description: Name of the quantum experiment
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Quantum Backend
+      options:
+        - local_simulator
+        - ibm_quantum
+        - cuda_q
+        - aws_braket
+        - azure_quantum
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What are you trying to achieve?
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Preliminary Results
+      description: Any initial findings
