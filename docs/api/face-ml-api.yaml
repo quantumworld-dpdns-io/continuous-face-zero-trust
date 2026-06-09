@@ -1,425 +1,178 @@
-openapi: 3.1.0
+openapi: "3.1.0"
 info:
-  title: Face ML Service API
-  description: Face detection, embedding, and matching API for CFZT system
-  version: 1.0.0
-  contact:
-    name: API Support
-    email: api@cfzt.io
-
+  title: Face ML Service
+  version: "0.1.0"
+  description: Continuous Face Zero Trust — Face ML Pipeline
 servers:
-  - url: https://api.cfzt.io
-    description: Production server
-  - url: https://staging-api.cfzt.io
-    description: Staging server
-  - url: http://localhost:8083
-    description: Local development server
+  - url: http://localhost:8001
 
 paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service healthy
+
   /api/v1/face/detect:
     post:
-      summary: Detect faces
-      description: Detect faces in an image
-      operationId: detectFaces
-      tags:
-        - Face Detection
+      summary: Detect faces in image
+      operationId: detectFace
       requestBody:
         required: true
         content:
-          application/json:
+          image/jpeg:
             schema:
-              $ref: '#/components/schemas/DetectRequest'
+              type: string
+              format: binary
       responses:
-        '200':
-          description: Faces detected
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DetectResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+        "200":
+          description: Detected faces
 
   /api/v1/face/embed:
     post:
       summary: Generate face embedding
-      description: Generate face embedding from image
       operationId: generateEmbedding
-      tags:
-        - Face Embedding
       requestBody:
         required: true
         content:
-          application/json:
+          image/jpeg:
             schema:
-              $ref: '#/components/schemas/EmbedRequest'
+              type: string
+              format: binary
       responses:
-        '200':
-          description: Embedding generated
+        "200":
+          description: Face embedding (512-d vector)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EmbedResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                type: object
+                properties:
+                  embedding:
+                    type: array
+                    items:
+                      type: number
+                  dimension:
+                    type: integer
+                  model_version:
+                    type: string
 
   /api/v1/face/compare:
     post:
-      summary: Compare face embeddings
-      description: Compare two face embeddings
-      operationId: compareEmbeddings
-      tags:
-        - Face Matching
+      summary: Compare two face embeddings
+      operationId: compareFaces
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CompareRequest'
+              type: object
+              properties:
+                embedding_a:
+                  type: array
+                  items:
+                    type: number
+                embedding_b:
+                  type: array
+                  items:
+                    type: number
+                threshold:
+                  type: number
       responses:
-        '200':
+        "200":
           description: Comparison result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CompareResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                type: object
+                properties:
+                  similarity:
+                    type: number
+                  match:
+                    type: boolean
+                  confidence:
+                    type: number
 
   /api/v1/face/liveness:
     post:
-      summary: Check liveness
-      description: Check if face is live (anti-spoofing)
-      operationId: checkLiveness
-      tags:
-        - Liveness Detection
+      summary: Detect liveness (anti-spoofing)
+      operationId: detectLiveness
       requestBody:
         required: true
         content:
-          application/json:
+          image/jpeg:
             schema:
-              $ref: '#/components/schemas/LivenessRequest'
+              type: string
+              format: binary
+      parameters:
+        - name: checks
+          in: query
+          schema:
+            type: string
+            default: "blink,depth,texture,anti_spoof"
       responses:
-        '200':
-          description: Liveness check result
+        "200":
+          description: Liveness result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LivenessResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                type: object
+                properties:
+                  live:
+                    type: boolean
+                  confidence:
+                    type: number
+                  check_scores:
+                    type: object
+                  failed_checks:
+                    type: array
+                    items:
+                      type: string
 
   /api/v1/face/search:
     post:
-      summary: Search face embeddings
-      description: Search for similar face embeddings
-      operationId: searchEmbeddings
-      tags:
-        - Face Search
+      summary: Search similar faces
+      operationId: searchSimilar
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SearchRequest'
+              type: object
+              properties:
+                embedding:
+                  type: array
+                  items:
+                    type: number
+                top_k:
+                  type: integer
+                  default: 5
+                filters:
+                  type: object
       responses:
-        '200':
+        "200":
           description: Search results
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SearchResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
 
   /api/v1/face/quantum-embed:
     post:
       summary: Generate quantum-enhanced embedding
-      description: Generate face embedding with quantum enhancement
       operationId: quantumEmbed
-      tags:
-        - Quantum Enhancement
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/QuantumEmbedRequest'
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                num_qubits:
+                  type: integer
+                  default: 4
+                ansatz_type:
+                  type: string
+                  enum: [hardware_efficient, UCCSD, strong_entanglement]
       responses:
-        '200':
-          description: Quantum embedding generated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/QuantumEmbedResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-components:
-  schemas:
-    DetectRequest:
-      type: object
-      required:
-        - image
-      properties:
-        image:
-          type: string
-          format: byte
-          description: Base64 encoded image
-
-    DetectResponse:
-      type: object
-      properties:
-        faces:
-          type: array
-          items:
-            $ref: '#/components/schemas/Face'
-          description: Detected faces
-
-    Face:
-      type: object
-      properties:
-        bounding_box:
-          $ref: '#/components/schemas/BoundingBox'
-        confidence:
-          type: number
-          format: float
-          description: Detection confidence
-        landmarks:
-          type: array
-          items:
-            $ref: '#/components/schemas/Point'
-          description: Facial landmarks
-
-    BoundingBox:
-      type: object
-      properties:
-        x:
-          type: number
-          format: float
-          description: X coordinate
-        y:
-          type: number
-          format: float
-          description: Y coordinate
-        width:
-          type: number
-          format: float
-          description: Width
-        height:
-          type: number
-          format: float
-          description: Height
-
-    Point:
-      type: object
-      properties:
-        x:
-          type: number
-          format: float
-          description: X coordinate
-        y:
-          type: number
-          format: float
-          description: Y coordinate
-
-    EmbedRequest:
-      type: object
-      required:
-        - image
-      properties:
-        image:
-          type: string
-          format: byte
-          description: Base64 encoded image
-        face_index:
-          type: integer
-          description: Index of face to embed (if multiple faces)
-
-    EmbedResponse:
-      type: object
-      properties:
-        embedding:
-          type: array
-          items:
-            type: number
-            format: float
-          description: Face embedding vector
-        quality_score:
-          type: number
-          format: float
-          description: Embedding quality score
-        model_version:
-          type: string
-          description: Model version used
-
-    CompareRequest:
-      type: object
-      required:
-        - embedding1
-        - embedding2
-      properties:
-        embedding1:
-          type: array
-          items:
-            type: number
-            format: float
-          description: First embedding
-        embedding2:
-          type: array
-          items:
-            type: number
-            format: float
-          description: Second embedding
-
-    CompareResponse:
-      type: object
-      properties:
-        similarity:
-          type: number
-          format: float
-          description: Cosine similarity score
-        match:
-          type: boolean
-          description: Whether embeddings match
-
-    LivenessRequest:
-      type: object
-      required:
-        - image
-      properties:
-        image:
-          type: string
-          format: byte
-          description: Base64 encoded image
-        video:
-          type: string
-          format: byte
-          description: Base64 encoded video (optional)
-
-    LivenessResponse:
-      type: object
-      properties:
-        is_live:
-          type: boolean
-          description: Whether face is live
-        confidence:
-          type: number
-          format: float
-          description: Liveness confidence
-        attack_type:
-          type: string
-          enum:
-            - none
-            - photo
-            - video
-            - mask
-          description: Detected attack type
-
-    SearchRequest:
-      type: object
-      required:
-        - embedding
-      properties:
-        embedding:
-          type: array
-          items:
-            type: number
-            format: float
-          description: Query embedding
-        limit:
-          type: integer
-          description: Maximum results
-        threshold:
-          type: number
-          format: float
-          description: Similarity threshold
-
-    SearchResponse:
-      type: object
-      properties:
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/SearchResult'
-          description: Search results
-
-    SearchResult:
-      type: object
-      properties:
-        id:
-          type: string
-          description: Embedding ID
-        user_id:
-          type: string
-          description: User ID
-        similarity:
-          type: number
-          format: float
-          description: Similarity score
-
-    QuantumEmbedRequest:
-      type: object
-      required:
-        - image
-      properties:
-        image:
-          type: string
-          format: byte
-          description: Base64 encoded image
-        quantum_enhancement:
-          type: boolean
-          description: Enable quantum enhancement
-
-    QuantumEmbedResponse:
-      type: object
-      properties:
-        embedding:
-          type: array
-          items:
-            type: number
-            format: float
+        "200":
           description: Quantum-enhanced embedding
-        quality_score:
-          type: number
-          format: float
-          description: Embedding quality score
-        quantum_enhancement:
-          type: boolean
-          description: Whether quantum enhancement was applied
-
-    Error:
-      type: object
-      properties:
-        code:
-          type: string
-          description: Error code
-        message:
-          type: string
-          description: Error message
-        details:
-          type: object
-          description: Error details
