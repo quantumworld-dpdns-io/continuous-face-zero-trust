@@ -1,0 +1,223 @@
+openapi: 3.1.0
+info:
+  title: Edge Gateway API
+  description: Edge Gateway API for CFZT system
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: api@cfzt.io
+
+servers:
+  - url: https://api.cfzt.io
+    description: Production server
+  - url: https://staging-api.cfzt.io
+    description: Staging server
+  - url: http://localhost:8080
+    description: Local development server
+
+paths:
+  /api/v1/edge/health:
+    get:
+      summary: Health check
+      description: Check edge gateway health
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/v1/edge/config:
+    get:
+      summary: Get configuration
+      description: Get edge gateway configuration
+      operationId: getConfig
+      tags:
+        - Configuration
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+
+  /api/v1/edge/routes:
+    get:
+      summary: Get routes
+      description: Get configured routes
+      operationId: getRoutes
+      tags:
+        - Routes
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Routes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutesResponse'
+
+  /api/v1/edge/metrics:
+    get:
+      summary: Get metrics
+      description: Get edge gateway metrics
+      operationId: getMetrics
+      tags:
+        - Metrics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+          description: Health status
+        version:
+          type: string
+          description: Gateway version
+        uptime:
+          type: integer
+          description: Uptime in seconds
+        region:
+          type: string
+          description: Edge region
+
+    ConfigResponse:
+      type: object
+      properties:
+        rate_limiting:
+          $ref: '#/components/schemas/RateLimiting'
+        waf:
+          $ref: '#/components/schemas/WAF'
+        tls:
+          $ref: '#/components/schemas/TLS'
+
+    RateLimiting:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: Rate limiting enabled
+        requests_per_second:
+          type: integer
+          description: Requests per second limit
+        burst_size:
+          type: integer
+          description: Burst size
+
+    WAF:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: WAF enabled
+        rules:
+          type: array
+          items:
+            type: string
+          description: WAF rules
+
+    TLS:
+      type: object
+      properties:
+        version:
+          type: string
+          description: TLS version
+        cipher_suites:
+          type: array
+          items:
+            type: string
+          description: Cipher suites
+        pqc_enabled:
+          type: boolean
+          description: PQC enabled
+
+    RoutesResponse:
+      type: object
+      properties:
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Route'
+          description: Configured routes
+
+    Route:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Route path
+        service:
+          type: string
+          description: Target service
+        methods:
+          type: array
+          items:
+            type: string
+          description: Allowed methods
+        rate_limit:
+          type: integer
+          description: Rate limit per route
+
+    MetricsResponse:
+      type: object
+      properties:
+        requests_total:
+          type: integer
+          description: Total requests
+        requests_per_second:
+          type: number
+          format: float
+          description: Requests per second
+        error_rate:
+          type: number
+          format: float
+          description: Error rate
+        latency_p99:
+          type: number
+          format: float
+          description: P99 latency in milliseconds
+        active_connections:
+          type: integer
+          description: Active connections
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Error details
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: PASETO
