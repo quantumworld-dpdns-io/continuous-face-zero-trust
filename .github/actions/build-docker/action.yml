@@ -1,0 +1,25 @@
+name: Build Docker
+description: Build and optionally push Docker image
+inputs:
+  service:
+    description: Service name
+    required: true
+  push:
+    description: Push to registry
+    required: false
+    default: 'false'
+  registry:
+    description: Container registry
+    required: false
+    default: 'ghcr.io'
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-buildx-action@v3
+    - uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: ${{ inputs.push }}
+        tags: ${{ inputs.registry }}/${{ github.repository }}/${{ inputs.service }}:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
