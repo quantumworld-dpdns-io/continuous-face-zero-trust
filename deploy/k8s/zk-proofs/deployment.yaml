@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zk-proofs
+  namespace: cfzt
+  labels:
+    app: zk-proofs
+    component: zero-knowledge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zk-proofs
+  template:
+    metadata:
+      labels:
+        app: zk-proofs
+        component: zero-knowledge
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: zk-proofs
+          image: cfzt/zk-proofs:latest
+          ports:
+            - name: http
+              containerPort: 8002
+              protocol: TCP
+            - name: grpc
+              containerPort: 50053
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: zk-proofs-config
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8002
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8002
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
