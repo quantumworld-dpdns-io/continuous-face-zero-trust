@@ -1,0 +1,29 @@
+[package]
+name = "zk-proofs"
+version = "0.1.0"
+edition = "2021"
+authors = ["quantumworld-dpdns-io"]
+description = "Zero-knowledge proof service for face authentication"
+
+[dependencies]
+tonic = "0.11"
+prost = "0.12"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ark-ff = "0.4"
+ark-serialize = "0.4"
+ark-bn254 = "0.4"
+ark-groth16 = "0.4"
+ark-relations = "0.4"
+ark-std = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+axum = "0.7"
+
+[build-dependencies]
+tonic-build = "0.11"
+
+[profile.release]
+opt-level = 3
+lto = true
