@@ -1,0 +1,143 @@
+syntax = "proto3";
+
+package cfzt.quantum.v1;
+
+import "common/v1/identifiers.proto";
+import "google/protobuf/timestamp.proto";
+
+service QuantumRNGService {
+  rpc GenerateRandom(GenerateRandomRequest) returns (GenerateRandomResponse);
+  rpc GenerateKeyPair(GenerateKeyPairRequest) returns (GenerateKeyPairResponse);
+  rpc HealthCheck(QuantumHealthRequest) returns (QuantumHealthResponse);
+}
+
+service QuantumKDService {
+  rpc InitiateKeyExchange(KeyExchangeInitRequest) returns (KeyExchangeInitResponse);
+  rpc CompleteKeyExchange(KeyExchangeCompleteRequest) returns (KeyExchangeCompleteResponse);
+  rpc GetQuantumKey(GetQuantumKeyRequest) returns (GetQuantumKeyResponse);
+}
+
+service QuantumMLService {
+  rpc RunVQC(RunVQCRequest) returns (RunVQCResponse);
+  rpc ComputeQuantumKernel(KernelRequest) returns (KernelResponse);
+  rpc TrainHybridModel(TrainRequest) returns (TrainResponse);
+}
+
+message GenerateRandomRequest {
+  int32 num_bits = 1;
+  string purpose = 2;
+  QuantumBackend backend = 3;
+}
+
+enum QuantumBackend {
+  QUANTUM_BACKEND_UNSPECIFIED = 0;
+  QUANTUM_BACKEND_LOCAL_SIMULATOR = 1;
+  QUANTUM_BACKEND_IBM_QUANTUM = 2;
+  QUANTUM_BACKEND_CUDA_Q = 3;
+  QUANTUM_BACKEND_AWS_BRAKET = 4;
+  QUANTUM_BACKEND_AZURE_QUANTUM = 5;
+}
+
+message GenerateRandomResponse {
+  bytes random_bytes = 1;
+  int32 num_bits = 2;
+  string backend_used = 3;
+  float min_entropy = 4;
+  bool nist_test_passed = 5;
+  google.protobuf.Timestamp generated_at = 6;
+}
+
+message GenerateKeyPairRequest {
+  int32 key_size_bits = 1;
+  string algorithm = 2;
+  QuantumBackend backend = 3;
+}
+
+message GenerateKeyPairResponse {
+  bytes public_key = 1;
+  bytes private_key = 2;
+  string algorithm = 3;
+  string backend_used = 4;
+  google.protobuf.Timestamp generated_at = 5;
+}
+
+message QuantumHealthRequest {}
+
+message QuantumHealthResponse {
+  bool healthy = 1;
+  string backend = 2;
+  string backend_status = 3;
+  float queue_depth = 4;
+  float avg_latency_ms = 5;
+  google.protobuf.Timestamp checked_at = 6;
+}
+
+message KeyExchangeInitRequest {
+  int32 key_size_bits = 1;
+  QuantumBackend backend = 2;
+}
+
+message KeyExchangeInitResponse {
+  bytes public_data = 1;
+  bytes basis_choices = 2;
+  string exchange_id = 3;
+}
+
+message KeyExchangeCompleteRequest {
+  string exchange_id = 1;
+  bytes public_data = 2;
+}
+
+message KeyExchangeCompleteResponse {
+  bytes shared_key = 1;
+  float qber = 2;
+  bool reconciliation_passed = 3;
+}
+
+message GetQuantumKeyRequest {
+  int32 key_size_bits = 1;
+  string purpose = 2;
+}
+
+message GetQuantumKeyResponse {
+  bytes key = 1;
+  string key_id = 2;
+  float security_parameter = 3;
+}
+
+message RunVQCRequest {
+  repeated float input_data = 1;
+  int32 num_qubits = 2;
+  repeated float parameters = 3;
+  string ansatz_type = 4;
+}
+
+message RunVQCResponse {
+  repeated float output = 1;
+  bytes circuit = 2;
+  float expectation_value = 3;
+}
+
+message KernelRequest {
+  repeated float data_point_a = 1;
+  repeated float data_point_b = 2;
+  int32 num_qubits = 3;
+}
+
+message KernelResponse {
+  float kernel_value = 1;
+  bytes quantum_circuit = 2;
+}
+
+message TrainRequest {
+  repeated float training_data = 1;
+  repeated float labels = 2;
+  int32 epochs = 3;
+  int32 num_qubits = 4;
+}
+
+message TrainResponse {
+  repeated float trained_parameters = 1;
+  float final_loss = 2;
+  repeated float loss_history = 3;
+}
