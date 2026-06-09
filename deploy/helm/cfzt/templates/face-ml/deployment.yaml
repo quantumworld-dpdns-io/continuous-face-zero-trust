@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cfzt.fullname" . }}-face-ml
+  namespace: {{ include "cfzt.namespace" . }}
+  labels:
+    {{- include "cfzt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ml-inference
+spec:
+  replicas: {{ .Values.faceMl.replicas | default 2 }}
+  selector:
+    matchLabels:
+      {{- include "cfzt.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ml-inference
+  template:
+    metadata:
+      labels:
+        {{- include "cfzt.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ml-inference
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: face-ml
+          image: "{{ .Values.faceMl.image.repository }}:{{ .Values.faceMl.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.faceMl.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.faceMl.service.port | default 8001 }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ .Values.faceMl.grpc.port | default 50052 }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "cfzt.fullname" . }}-face-ml-config
+          {{- with .Values.faceMl.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.faceMl.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
