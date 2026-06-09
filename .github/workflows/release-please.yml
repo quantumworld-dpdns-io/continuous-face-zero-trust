@@ -1,0 +1,29 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          release-type: simple
+          changelog-types: |
+            [
+              {"type":"feat","section":"Features","hidden":false},
+              {"type":"fix","section":"Bug Fixes","hidden":false},
+              {"type":"quantum","section":"Quantum","hidden":false},
+              {"type":"security","section":"Security","hidden":false},
+              {"type":"pqc","section":"Post-Quantum Crypto","hidden":false},
+              {"type":"zkp","section":"Zero-Knowledge Proofs","hidden":false},
+              {"type":"face-ml","section":"Face ML","hidden":false},
+              {"type":"infra","section":"Infrastructure","hidden":false}
+            ]
