@@ -1,0 +1,25 @@
+name: Security Scan
+description: Run comprehensive security scanning
+inputs:
+  scan-type:
+    description: 'full' or 'quick'
+    required: false
+    default: 'full'
+runs:
+  using: composite
+  steps:
+    - run: pip install bandit safety
+      shell: bash
+    - run: bandit -r services/ pkg/python/ -f json -o bandit-report.json || true
+      shell: bash
+    - run: safety check --json > safety-report.json || true
+      shell: bash
+    - uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        severity: 'HIGH,CRITICAL'
+        format: 'json'
+        output: 'trivy-report.json'
+      if: inputs.scan-type == 'full'
+    - uses: gitleaks/gitleaks-action@v2
+      if: inputs.scan-type == 'full'
