@@ -1,0 +1,13 @@
+{
+  "provider": "aws",
+  "services": ["auth-api", "face-ml", "zk-proofs", "quantum-rng", "pqc-crypto", "cache-store", "vector-db", "analytics"],
+  "cluster": "eks",
+  "region": "us-east-1",
+  "instance_types": {
+    "default": "m5.xlarge",
+    "gpu": "g4dn.xlarge",
+    "quantum": "c5.2xlarge"
+  },
+  "deploy_command": "kubectl apply -k deploy/k8s/",
+  "environment": "production"
+}

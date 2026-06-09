@@ -1,0 +1,8 @@
+{
+  "provider": "gcp",
+  "services": ["auth-api", "face-ml", "zk-proofs", "quantum-rng", "pqc-crypto"],
+  "cluster": "gke",
+  "region": "us-central1",
+  "deploy_command": "gcloud container clusters get-credentials cfzt --region us-central1 && kubectl apply -k deploy/k8s/",
+  "environment": "production"
+}
