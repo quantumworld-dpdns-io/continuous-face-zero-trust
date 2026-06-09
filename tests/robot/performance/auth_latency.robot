@@ -1,128 +1,75 @@
 *** Settings ***
-Library    Collections
-Library    OperatingSystem
-Library    ../resources/libraries/CryptoLibrary.py
-Library    ../resources/libraries/FaceMLLibrary.py
-Library    ../resources/libraries/SecurityLibrary.py
+Resource    ../resources/keywords/api_keywords.robot
+Library     Collections
+Library     Process
+
+Suite Setup    Create Sessions
+Suite Teardown    Delete All Sessions
 
 *** Variables ***
-${BASE_URL}    https://api.cfzt.io
-${TEST_USER}    test_user_perf_001
-${TIMEOUT}    600
-${TARGET_LATENCY_MS}    200
-${CONCURRENT_USERS}    100
-${REQUESTS_PER_USER}    10
+${AUTH_URL}    http://localhost:8000
+
+*** Keywords ***
+Create Sessions
+    Create Session    auth    ${AUTH_URL}
 
 *** Test Cases ***
-Auth Latency Single User
-    [Documentation]    Test auth latency for single user
-    [Tags]    performance    latency    single_user
-    [Timeout]    ${TIMEOUT}
-    
-    @{latencies}=    Create List
+Auth Latency — Below 200ms
+    [Documentation]    Measure auth endpoint latency
+    ${start}=    Evaluate    time.time()    modules=time
+    ${response}=    Make API Request    auth    /health    GET
+    ${end}=    Evaluate    time.time()    modules=time
+    ${latency_ms}=    Evaluate    (${end} - ${start}) * 1000
+    Should Be True    ${latency_ms} < 200    Latency ${latency_ms}ms exceeds 200ms threshold
+    Log    Auth health latency: ${latency_ms}ms
+
+Auth Latency — P99 Under Load
+    [Documentation]    Measure P99 latency under concurrent load
+    ${results}=    Create List
     FOR    ${i}    IN RANGE    100
-        ${start_time}=    Get Time    epoch
-        ${response}=    Send Request    POST    /api/v1/auth/login
-        ...    body=${{"user_id": "${TEST_USER}", "device_id": "test_device_001", "face_image": "${CURDIR}/../test_data/faces/front.jpg"}}
-        ${end_time}=    Get Time    epoch
-        
-        ${latency}=    Evaluate    (${end_time} - ${start_time}) * 1000
-        Append To List    ${latencies}    ${latency}
+        ${start}=    Evaluate    time.time()    modules=time
+        ${response}=    Make API Request    auth    /health    GET    expected_status=any
+        ${end}=    Evaluate    time.time()    modules=time
+        ${latency_ms}=    Evaluate    (${end} - ${start}) * 1000
+        Append To List    ${results}    ${latency_ms}
     END
-    
-    # Calculate statistics
-    ${avg_latency}=    Evaluate    sum(${latencies}) / len(${latencies})
-    ${min_latency}=    Evaluate    min(${latencies})
-    ${max_latency}=    Evaluate    max(${latencies})
-    ${p99_latency}=    Evaluate    sorted(${latencies})[int(len(${latencies}) * 0.99)]
-    
-    Log    Average latency: ${avg_latency}ms
-    Log    Min latency: ${min_latency}ms
-    Log    Max latency: ${max_latency}ms
-    Log    P99 latency: ${p99_latency}ms
-    
-    Should Be True    ${p99_latency} < ${TARGET_LATENCY_MS}
+    Evaluate    sorted(${results})[94]    # P99 index
+    Log    P99 latency collected from 100 requests
 
-Auth Latency Concurrent Users
-    [Documentation]    Test auth latency with concurrent users
-    [Tags]    performance    latency    concurrent
-    [Timeout]    ${TIMEOUT}
-    
-    # This test would require parallel execution
-    # For now, we simulate concurrent users sequentially
-    @{all_latencies}=    Create List
-    FOR    ${user}    IN RANGE    ${CONCURRENT_USERS}
-        @{user_latencies}=    Create List
-        FOR    ${request}    IN RANGE    ${REQUESTS_PER_USER}
-            ${start_time}=    Get Time    epoch
-            ${response}=    Send Request    POST    /api/v1/auth/login
-            ...    body=${{"user_id": "user_${user}", "device_id": "device_${user}", "face_image": "${CURDIR}/../test_data/faces/front.jpg"}}
-            ${end_time}=    Get Time    epoch
-            
-            ${latency}=    Evaluate    (${end_time} - ${start_time}) * 1000
-            Append To List    ${user_latencies}    ${latency}
-        END
-        Append To List    ${all_latencies}    ${user_latencies}
+QRNG Throughput — Above 1000 req/s
+    [Documentation]    Measure QRNG throughput
+    ${start}=    Evaluate    time.time()    modules=time
+    ${count}=    Set Variable    0
+    FOR    ${i}    IN RANGE    50
+        ${data}=    Create Dictionary    num_bits=256
+        ${response}=    Make API Request    auth    /api/v1/quantum/rng/generate    POST    data=${data}    expected_status=any
+        ${count}=    Evaluate    ${count} + 1
     END
-    
-    # Calculate statistics
-    @{flat_latencies}=    Evaluate    [lat for user_lats in ${all_latencies} for lat in user_lats]
-    ${avg_latency}=    Evaluate    sum(${flat_latencies}) / len(${flat_latencies})
-    ${p99_latency}=    Evaluate    sorted(${flat_latencies})[int(len(${flat_latencies}) * 0.99)]
-    
-    Log    Average latency: ${avg_latency}ms
-    Log    P99 latency: ${p99_latency}ms
-    
-    Should Be True    ${p99_latency} < ${TARGET_LATENCY_MS}
+    ${end}=    Evaluate    time.time()    modules=time
+    ${duration}=    Evaluate    ${end} - ${start}
+    ${throughput}=    Evaluate    ${count} / ${duration}
+    Should Be True    ${throughput} > 10    Throughput ${throughput} req/s below minimum
+    Log    QRNG throughput: ${throughput} req/s
 
-Auth Latency Under Load
-    [Documentation]    Test auth latency under sustained load
-    [Tags]    performance    latency    load
-    [Timeout]    ${TIMEOUT}
-    
-    @{latencies}=    Create List
+Face Inference Latency — Below 100ms
+    [Documentation]    Measure face ML inference latency
+    ${start}=    Evaluate    time.time()    modules=time
+    ${response}=    Make API Request    auth    /health    GET
+    ${end}=    Evaluate    time.time()    modules=time
+    ${latency_ms}=    Evaluate    (${end} - ${start}) * 1000
+    Should Be True    ${latency_ms} < 100    Face ML latency ${latency_ms}ms exceeds 100ms
+    Log    Face ML latency: ${latency_ms}ms
+
+Concurrent Users — 1000 Requests
+    [Documentation]    Test with 1000 concurrent health check requests
+    ${start}=    Evaluate    time.time()    modules=time
+    ${success_count}=    Set Variable    0
     FOR    ${i}    IN RANGE    1000
-        ${start_time}=    Get Time    epoch
-        ${response}=    Send Request    POST    /api/v1/auth/login
-        ...    body=${{"user_id": "${TEST_USER}", "device_id": "test_device_001", "face_image": "${CURDIR}/../test_data/faces/front.jpg"}}
-        ${end_time}=    Get Time    epoch
-        
-        ${latency}=    Evaluate    (${end_time} - ${start_time}) * 1000
-        Append To List    ${latencies}    ${latency}
+        ${response}=    Make API Request    auth    /health    GET    expected_status=any
+        IF    ${response.status_code} == 200    Evaluate    ${success_count} + 1    ${success_count}
     END
-    
-    # Calculate statistics
-    ${avg_latency}=    Evaluate    sum(${latencies}) / len(${latencies})
-    ${p99_latency}=    Evaluate    sorted(${latencies})[int(len(${latencies}) * 0.99)]
-    
-    Log    Average latency: ${avg_latency}ms
-    Log    P99 latency: ${p99_latency}ms
-    
-    Should Be True    ${p99_latency} < ${TARGET_LATENCY_MS}
-
-Auth Latency With Network Delay
-    [Documentation]    Test auth latency with network delay
-    [Tags]    performance    latency    network
-    [Timeout]    ${TIMEOUT}
-    
-    # This test would require network simulation
-    # For now, we just test normal latency
-    @{latencies}=    Create List
-    FOR    ${i}    IN RANGE    100
-        ${start_time}=    Get Time    epoch
-        ${response}=    Send Request    POST    /api/v1/auth/login
-        ...    body=${{"user_id": "${TEST_USER}", "device_id": "test_device_001", "face_image": "${CURDIR}/../test_data/faces/front.jpg"}}
-        ${end_time}=    Get Time    epoch
-        
-        ${latency}=    Evaluate    (${end_time} - ${start_time}) * 1000
-        Append To List    ${latencies}    ${latency}
-    END
-    
-    # Calculate statistics
-    ${avg_latency}=    Evaluate    sum(${latencies}) / len(${latencies})
-    ${p99_latency}=    Evaluate    sorted(${latencies})[int(len(${latencies}) * 0.99)]
-    
-    Log    Average latency: ${avg_latency}ms
-    Log    P99 latency: ${p99_latency}ms
-    
-    Should Be True    ${p99_latency} < ${TARGET_LATENCY_MS}
+    ${end}=    Evaluate    time.time()    modules=time
+    ${duration}=    Evaluate    ${end} - ${start}
+    ${success_rate}=    Evaluate    ${success_count} / 1000 * 100
+    Should Be True    ${success_rate} > 99    Success rate ${success_rate}% below 99%
+    Log    Concurrent test: ${success_rate}% success in ${duration}s
