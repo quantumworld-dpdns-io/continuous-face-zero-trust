@@ -1,0 +1,213 @@
+collector:
+  endpoints:
+    - host: jaeger-collector.monitoring.svc.cluster.local
+      port: 14250
+      protocol: grpc
+    - host: jaeger-collector.monitoring.svc.cluster.local
+      port: 14268
+      protocol: http
+  grpc_max_msg_size: 4194304
+  http_max_body_size: 33554432
+  num_workers: 50
+  otlp:
+    enabled: true
+    grpc:
+      endpoint: "0.0.0.0:4317"
+      max_message_size: 4194304
+      max_connection_age: 0s
+      max_connection_age_grace: 0s
+      tls:
+        cert_path: ""
+        key_path: ""
+        client_ca_path: ""
+    http:
+      endpoint: "0.0.0.0:4318"
+      tls:
+        cert_path: ""
+        key_path: ""
+        client_ca_path: ""
+agent:
+  enabled: false
+  sample_type: probabilistic
+  sample_param: 1.0
+  reporter:
+    type: grpc
+    grpc:
+      endpoint: jaeger-collector.monitoring.svc.cluster.local:14250
+      tls:
+        cert_path: ""
+        key_path: ""
+        ca_path: ""
+      tls-server-name: ""
+      wait_for_ready: false
+      headers:
+        X-Custom-Header: cfzt-jaeger
+    http:
+      endpoint: jaeger-collector.monitoring.svc.cluster.local:14268
+      tls:
+        cert_path: ""
+        key_path: ""
+        ca_path: ""
+  log:
+    level: info
+  tags:
+    environment: production
+    service: cfzt
+  propagation:
+    b3:
+      enabled: true
+      inject_encoding: multi
+    jaeger:
+      enabled: true
+    tracecontext:
+      enabled: true
+      baggage:
+        enabled: true
+    foreign_agents:
+      - name: otel
+        type: otel
+        endpoint: otel-collector.monitoring.svc.cluster.local:4318
+query:
+  base_path: /
+storage:
+  type: elasticsearch
+  elasticsearch:
+    server-urls:
+      - https://elasticsearch.monitoring.svc.cluster.local:9200
+    index-prefix: jaeger
+    index-date-span: 24h
+    num-shards: 3
+    num-replicas: 1
+    username: elastic
+    password: ${ELASTIC_PASSWORD}
+    insecure-skip-tls-verify: false
+    tls:
+      ca: /etc/elasticsearch/certs/ca.crt
+      cert: /etc/elasticsearch/certs/client.crt
+      key: /etc/elasticsearch/certs/client.key
+    tokens:
+      storage: elasticsearch
+      elasticsearch:
+        index-prefix: jaeger-tokens
+    service-cache-ttl: 5m
+    service-cache-max-size: 10000
+  badger:
+    directory-key: /badger/key
+    directory-value: /badger/data
+    value-log-file-size: 1073741824
+    value-log-garbage-collection-enabled: true
+    ephemeral: false
+    readonly: false
+    mem-table-size: 4194304
+    sync-writes: false
+    num-compactors: 4
+    num-levels: 7
+    num-goroutines: 16
+    metrics-update-interval: 10s
+    badger-options:
+      level_size_multiplier: 10
+      table_size_multiplier: 2
+      num-levels: 7
+      base-level-size: 10737418
+      value-log-file-size: 1073741824
+      value-log-max-entries: 1000000
+      num-mem-tables: 4
+      num-levels: 7
+      base-level-size: 10737418
+      table-size-multiplier: 2
+      level-size-multiplier: 10
+  cassandra:
+    servers:
+      - cassandra.monitoring.svc.cluster.local:9042
+    keyspace: jaeger_v1
+    consistency: One
+    num-retries: 3
+    proto-version: 4
+    socket-keep-alive: 0s
+    disable-auto-creation: false
+    enable-logging: false
+    local-dc: dc1
+    query-progress-reporting-enabled: true
+  memory:
+    max-traces: 100000
+    max-connections: 0
+    discard: false
+    sparse-entries: false
+metrics:
+  prefix: jaeger_
+  scope:
+    type: prometheus
+    prometheus:
+      host: "0.0.0.0"
+      port: 8888
+      namespace: jaeger
+      subsystem: collector
+  log-level: info
+service:
+  name: jaeger
+  disable UIControlPort: false
+  UIControlPort: 0
+  max-connection-age: 0s
+  max-connection-age-grace: 0s
+  agent.host-port: "0.0.0.0:6831"
+  collector.zipkin.host-port: "0.0.0.0:9411"
+  collector.queues:
+    size: 2000
+    workers: 50
+    retry-backoff: 5s
+  collector.tls:
+    cert-path: ""
+    key-path: ""
+    client-ca-path: ""
+  collector.grpc:
+    host-port: "0.0.0.0:14250"
+    max-recv-msg-size-bytes: 4194304
+    max-send-msg-size-bytes: 4194304
+    stream-events-between-spans: false
+  collector.http:
+    host-port: "0.0.0.0:14268"
+    tls:
+      cert-path: ""
+      key-path: ""
+      client-ca-path: ""
+  collector.zipkin:
+    host-port: "0.0.0.0:9411"
+    additional-headers: []
+    cors:
+      allowed-origins: "*"
+      allowed-headers: "Content-Type"
+      allowed-methods: "POST, GET, OPTIONS"
+      max-age: 3600
+      allow-credentials: false
+  query.base-path: /
+  query.log-level: info
+  query.additional-headers: []
+  query.cors:
+    allowed-origins: "*"
+    allowed-headers: "Content-Type"
+    allowed-methods: "POST, GET, OPTIONS"
+    max-age: 3600
+    allow-credentials: false
+  query.static-files: /etc/jaeger/ui
+  query.ui-config: /etc/jaeger/ui-config.json
+  sampling:
+    strategies-file: /etc/jaeger/sampling-strategies.json
+    reload-interval: 1m
+    options:
+      - name: service-a
+        type: probabilistic
+        param: 0.8
+        max-traces-per-second: 100
+        operation-sampling:
+          - name: GET /api/face/detect
+            type: probabilistic
+            param: 1.0
+          - name: POST /api/face/verify
+            type: probabilistic
+            param: 1.0
+          - name: POST /api/auth/login
+            type: probabilistic
+            param: 1.0
+          - name: POST /api/auth/biometric
+            type: probabilistic
+            param: 1.0
