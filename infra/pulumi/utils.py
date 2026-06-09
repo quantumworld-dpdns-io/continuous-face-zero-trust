@@ -1,114 +1,161 @@
 from __future__ import annotations
 
-import hashlib
-import json
-from typing import Any
-
 import pulumi
 
 
-def get_tag(name: str, environment: str, additional: dict[str, str] | None = None) -> dict[str, str]:
-    tags = {
-        "Project": name,
-        "Environment": environment,
-        "ManagedBy": "pulumi",
-        "Infrastructure": "continuous-face-zero-trust",
-    }
-    if additional:
-        tags.update(additional)
-    return tags
-
-
-def merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    result = base.copy()
-    for key, value in override.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = merge_dicts(result[key], value)
-        else:
-            result[key] = value
-    return result
-
-
-def resource_name(environment: str, name: str, separator: str = "-") -> str:
-    return separator.join(["cfzt", environment, name])
-
-
-def hash_config(config: dict[str, Any]) -> str:
-    config_str = json.dumps(config, sort_keys=True)
-    return hashlib.sha256(config_str.encode()).hexdigest()[:12]
-
-
-def validate_cidr(cidr: str) -> bool:
-    parts = cidr.split("/")
-    if len(parts) != 2:
-        return False
-    octets = parts[0].split(".")
-    if len(octets) != 4:
-        return False
-    try:
-        for octet in octets:
-            val = int(octet)
-            if val < 0 or val > 255:
-                return False
-        prefix = int(parts[1])
-        if prefix < 0 or prefix > 32:
-            return False
-        return True
-    except ValueError:
-        return False
-
-
-def output_to_dict(outputs: dict[str, pulumi.Output[Any]]) -> dict[str, Any]:
-    result = {}
-    for key, value in outputs.items():
-        result[key] = value
-    return result
-
-
-def apply_tags(
-    resource_tags: dict[str, str],
-    global_tags: dict[str, str],
-) -> dict[str, str]:
-    merged = global_tags.copy()
-    merged.update(resource_tags)
-    return merged
-
-
-def create_security_group_rules(
-    ingress_rules: list[dict[str, Any]],
-    egress_rules: list[dict[str, Any]],
-) -> dict[str, Any]:
+def get_provider_config(cloud: str, region: str) -> dict[str, pulumi.Config]:
+    config = pulumi.Config()
     return {
-        "ingress": ingress_rules,
-        "egress": egress_rules,
+        "cloud": cloud,
+        "region": region,
+        "project": config.get("project") or "continuous-face-zero-trust",
+        "stack": config.full_name,
     }
 
 
-def get_provider_config(cloud: str, region: str) -> dict[str, Any]:
-    configs = {
-        "aws": {
-            "region": region,
-            "default_tags": {"tags": {"ManagedBy": "pulumi"}},
+def validate_tags(tags: dict[str, str]) -> bool:
+    for key, value in tags.items():
+        if not key or not isinstance(value, str):
+            return False
+        if len(key) > 128 or len(value) > 256:
+            return False
+    return True
+
+
+def create_eks_cluster_config(
+    cluster_name: str,
+    k8s_version: str,
+    node_groups: list[dict],
+    vpc_id: str,
+    subnet_ids: list[str],
+    security_group_ids: list[str] | None = None,
+) -> dict:
+    return {
+        "name": cluster_name,
+        "version": k8s_version,
+        "role_arn": f"arn:aws:iam::role/{cluster_name}-cluster-role",
+        "vpc_config": {
+            "subnet_ids": subnet_ids,
+            "security_group_ids": security_group_ids or [],
+            "endpoint_private_access": True,
+            "endpoint_public_access": True,
         },
-        "gcp": {
-            "project": "cfzt-project",
-            "zone": f"{region}-a",
+        "node_groups": node_groups,
+        "enabled_cluster_log_types": ["api", "audit", "authenticator", "controllerManager", "scheduler"],
+    }
+
+
+def create_gke_cluster_config(
+    cluster_name: str,
+    k8s_version: str,
+    node_pools: list[dict],
+    network: str,
+    subnetwork: str,
+    region: str,
+) -> dict:
+    return {
+        "name": cluster_name,
+        "initial_node_count": 1,
+        "min_master_version": k8s_version,
+        "network": network,
+        "subnetwork": subnetwork,
+        "location": region,
+        "node_pools": node_pools,
+        "release_channel": {"channel": "REGULAR"},
+        "logging_config": {
+            "enable_components": ["SYSTEM_COMPONENTS", "WORKLOADS"],
         },
-        "azure": {
-            "location": region,
-            "resource_group_name": "cfzt-rg",
+        "monitoring_config": {
+            "enable_components": ["SYSTEM_COMPONENTS"],
         },
     }
-    return configs.get(cloud, {})
 
 
-def format_endpoint(host: str, port: int, protocol: str = "https") -> str:
-    if port == 443 and protocol == "https":
-        return f"{protocol}://{host}"
-    if port == 80 and protocol == "http":
-        return f"{protocol}://{host}"
-    return f"{protocol}://{host}:{port}"
+def create_aks_cluster_config(
+    cluster_name: str,
+    k8s_version: str,
+    node_pools: list[dict],
+    resource_group: str,
+    vnet_subnet_id: str,
+) -> dict:
+    return {
+        "name": cluster_name,
+        "kubernetes_version": k8s_version,
+        "resource_group_name": resource_group,
+        "dns_prefix": cluster_name,
+        "network_profile": {
+            "network_plugin": "azure",
+            "network_policy": "calico",
+            "load_balancer_sku": "standard",
+        },
+        "agent_pool_profiles": node_pools,
+        "vnet_subnet_id": vnet_subnet_id,
+        "enable_rbac": True,
+        "enable_pod_security_policy": True,
+    }
 
 
-def sanitize_name(name: str) -> str:
-    return name.lower().replace("_", "-").replace(" ", "-")
+def create_elasticache_cluster_config(
+    cluster_name: str,
+    node_type: str,
+    num_shards: int,
+    num_replicas: int,
+    engine_version: str,
+    port: int,
+    subnet_group_name: str,
+    security_group_ids: list[str],
+    parameter_group: str,
+    at_rest_encryption: bool,
+    transit_encryption: bool,
+) -> dict:
+    return {
+        "cluster_id": cluster_name,
+        "engine": "redis",
+        "engine_version": engine_version,
+        "node_type": node_type,
+        "num_cache_nodes": num_replicas,
+        "num_shards": num_shards,
+        "port": port,
+        "subnet_group_name": subnet_group_name,
+        "security_group_ids": security_group_ids,
+        "parameter_group_name": parameter_group,
+        "at_rest_encryption_enabled": at_rest_encryption,
+        "transit_encryption_enabled": transit_encryption,
+        "automatic_failover_enabled": True,
+        "multi_az_enabled": True,
+        "snapshot_retention_limit": 7,
+        "maintenance_window": "sun:05:00-sun:09:00",
+        "notification_topic_arn": "",
+        "auto_minor_version_upgrade": True,
+    }
+
+
+def create_monitoring_stack_config(
+    prometheus_retention_days: int,
+    grafana_admin_password: str,
+    jaeger_agent_port: int,
+    jaeger_collector_port: int,
+    enable_loki: bool,
+    enable_pyroscope: bool,
+) -> dict:
+    return {
+        "prometheus": {
+            "retention_days": prometheus_retention_days,
+            "storage_class": "gp3",
+            "scrape_interval": "15s",
+            "evaluation_interval": "15s",
+        },
+        "grafana": {
+            "admin_password": grafana_admin_password,
+            "persistence_enabled": True,
+            "persistence_size": "10Gi",
+        },
+        "jaeger": {
+            "agent_port": jaeger_agent_port,
+            "collector_port": jaeger_collector_port,
+            "storage_type": "elasticsearch",
+            "collector_replicas": 2,
+        },
+        "loki": {"enabled": enable_loki},
+        "pyroscope": {"enabled": enable_pyroscope},
+    }
