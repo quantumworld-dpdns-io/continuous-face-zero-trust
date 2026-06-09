@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package cfzt.zk.v1;
+
+import "common/v1/identifiers.proto";
+import "google/protobuf/timestamp.proto";
+
+service ZKService {
+  rpc GenerateProof(GenerateProofRequest) returns (GenerateProofResponse);
+  rpc VerifyProof(VerifyProofRequest) returns (VerifyProofResponse);
+  rpc GenerateFaceProof(FaceProofRequest) returns (FaceProofResponse);
+  rpc GenerateLivenessProof(LivenessProofRequest) returns (LivenessProofResponse);
+  rpc GenerateSessionProof(SessionProofRequest) returns (SessionProofResponse);
+  rpc AggregateProofs(AggregateProofsRequest) returns (AggregateProofsResponse);
+}
+
+message GenerateProofRequest {
+  bytes public_inputs = 1;
+  bytes private_inputs = 2;
+  string circuit_id = 3;
+  ProverType prover_type = 4;
+}
+
+enum ProverType {
+  PROVER_TYPE_UNSPECIFIED = 0;
+  PROVER_TYPE_GROTH16 = 1;
+  PROVER_TYPE_PLONK = 2;
+  PROVER_TYPE_HALO2 = 3;
+  PROVER_TYPE_BULLETPROOFS = 4;
+}
+
+message GenerateProofResponse {
+  bytes proof = 1;
+  bytes verification_key = 2;
+  string circuit_id = 3;
+  ProverType prover_used = 4;
+  int64 proving_time_ms = 5;
+  google.protobuf.Timestamp generated_at = 6;
+}
+
+message VerifyProofRequest {
+  bytes proof = 1;
+  bytes public_inputs = 2;
+  bytes verification_key = 3;
+  string circuit_id = 4;
+}
+
+message VerifyProofResponse {
+  bool valid = 1;
+  string circuit_id = 2;
+  int64 verification_time_ms = 3;
+  google.protobuf.Timestamp verified_at = 4;
+}
+
+message FaceProofRequest {
+  repeated float embedding = 1;
+  repeated float range_min = 2;
+  repeated float range_max = 3;
+  ProverType prover_type = 4;
+}
+
+message FaceProofResponse {
+  bytes proof = 1;
+  bytes verification_key = 2;
+  bool valid = 3;
+  int64 proving_time_ms = 4;
+}
+
+message LivenessProofRequest {
+  float liveness_score = 1;
+  float threshold = 2;
+  ProverType prover_type = 3;
+}
+
+message LivenessProofResponse {
+  bytes proof = 1;
+  bytes verification_key = 2;
+  bool above_threshold = 3;
+  int64 proving_time_ms = 4;
+}
+
+message SessionProofRequest {
+  UUID session_id = 1;
+  google.protobuf.Timestamp valid_from = 2;
+  google.protobuf.Timestamp valid_until = 3;
+  bytes user_commitment = 4;
+  ProverType prover_type = 5;
+}
+
+message SessionProofResponse {
+  bytes proof = 1;
+  bytes verification_key = 2;
+  bool valid = 3;
+  int64 proving_time_ms = 4;
+}
+
+message AggregateProofsRequest {
+  repeated bytes proofs = 1;
+  string aggregate_circuit_id = 2;
+}
+
+message AggregateProofsResponse {
+  bytes aggregated_proof = 1;
+  int32 proof_count = 2;
+  int64 aggregation_time_ms = 3;
+}
