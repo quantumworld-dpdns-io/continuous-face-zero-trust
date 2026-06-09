@@ -1,0 +1,220 @@
+name: Canary Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to deploy"
+        required: true
+        type: choice
+        options:
+          - auth-service
+          - face-ml-service
+          - quantum-rng
+          - pqc-crypto
+          - zk-proofs
+          - edge-gateway
+      version:
+        description: "Version to deploy"
+        required: true
+        type: string
+      canary_percentage:
+        description: "Canary percentage"
+        required: false
+        type: string
+        default: "10"
+      duration:
+        description: "Canary duration (minutes)"
+        required: false
+        type: string
+        default: "30"
+
+env:
+  REGISTRY: ghcr.io
+  CLUSTER_NAME: cfzt-production
+  NAMESPACE: cfzt-production
+
+jobs:
+  deploy-canary:
+    name: Deploy Canary
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region us-east-1
+
+      - name: Deploy canary
+        run: |
+          PERCENTAGE="${{ inputs.canary_percentage || '10' }}"
+          VERSION="${{ inputs.version }}"
+          SERVICE="${{ inputs.service }}"
+          
+          # Create canary deployment
+          cat > canary-deployment.yaml << EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: ${SERVICE}-canary
+            namespace: ${{ env.NAMESPACE }}
+            labels:
+              app: ${SERVICE}
+              version: canary
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: ${SERVICE}
+                version: canary
+            template:
+              metadata:
+                labels:
+                  app: ${SERVICE}
+                  version: canary
+              spec:
+                containers:
+                - name: ${SERVICE}
+                  image: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${SERVICE}:${VERSION}
+          EOF
+          
+          kubectl apply -f canary-deployment.yaml
+
+      - name: Configure traffic split
+        run: |
+          PERCENTAGE="${{ inputs.canary_percentage || '10' }}"
+          cat > traffic-split.yaml << EOF
+          apiVersion: networking.istio.io/v1alpha3
+          kind: VirtualService
+          metadata:
+            name: ${{ inputs.service }}
+            namespace: ${{ env.NAMESPACE }}
+          spec:
+            hosts:
+            - ${{ inputs.service }}
+            http:
+            - route:
+              - destination:
+                  host: ${{ inputs.service }}
+                  subset: stable
+                weight: $((100 - PERCENTAGE))
+              - destination:
+                  host: ${{ inputs.service }}
+                  subset: canary
+                weight: ${PERCENTAGE}
+          EOF
+          
+          kubectl apply -f traffic-split.yaml
+
+  monitor-canary:
+    name: Monitor Canary
+    runs-on: ubuntu-latest
+    needs: deploy-canary
+    steps:
+      - name: Monitor canary metrics
+        run: |
+          DURATION="${{ inputs.duration || '30' }}"
+          END_TIME=$(($(date +%s) + DURATION * 60))
+          
+          while [ $(date +%s) -lt $END_TIME ]; do
+            echo "$(date): Checking canary metrics..."
+            
+            # Check error rate
+            ERROR_RATE=$(curl -sf "https://prometheus.cfzt.io/api/v1/query?query=rate(http_requests_total{app='${{ inputs.service }}',version='canary',status=~'5..'}[5m])" | jq -r '.data.result[0].value[1] // "0"')
+            
+            # Check latency
+            LATENCY=$(curl -sf "https://prometheus.cfzt.io/api/v1/query?query=histogram_quantile(0.99,rate(http_request_duration_seconds_bucket{app='${{ inputs.service }}',version='canary'}[5m]))" | jq -r '.data.result[0].value[1] // "0"')
+            
+            echo "Error rate: $ERROR_RATE, Latency P99: ${LATENCY}s"
+            
+            # Check thresholds
+            if (( $(echo "$ERROR_RATE > 0.05" | bc -l) )); then
+              echo "::error::Canary error rate too high"
+              exit 1
+            fi
+            
+            sleep 60
+          done
+
+  promote-canary:
+    name: Promote Canary
+    runs-on: ubuntu-latest
+    needs: monitor-canary
+    steps:
+      - name: Promote canary to stable
+        run: |
+          VERSION="${{ inputs.version }}"
+          SERVICE="${{ inputs.service }}"
+          
+          # Update stable deployment
+          kubectl set image deployment/${SERVICE} \
+            ${SERVICE}=${{ env.REGISTRY }}/${{ github.repository_owner }}/${SERVICE}:${VERSION} \
+            -n ${{ env.NAMESPACE }}
+          
+          # Delete canary deployment
+          kubectl delete deployment ${SERVICE}-canary -n ${{ env.NAMESPACE }} || true
+          
+          # Reset traffic split
+          kubectl delete virtualservice ${SERVICE} -n ${{ env.NAMESPACE }} || true
+
+      - name: Notify
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Canary deployment promoted: ${{ inputs.service }}:${{ inputs.version }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Canary deployment promoted\n*Service:* ${{ inputs.service }}\n*Version:* ${{ inputs.version }}\n*Percentage:* ${{ inputs.canary_percentage || '10' }}%"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  rollback-canary:
+    name: Rollback Canary
+    runs-on: ubuntu-latest
+    needs: monitor-canary
+    if: failure()
+    steps:
+      - name: Rollback canary
+        run: |
+          SERVICE="${{ inputs.service }}"
+          
+          # Delete canary deployment
+          kubectl delete deployment ${SERVICE}-canary -n ${{ env.NAMESPACE }} || true
+          
+          # Reset traffic split
+          kubectl delete virtualservice ${SERVICE} -n ${{ env.NAMESPACE }} || true
+
+      - name: Notify
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Canary deployment rolled back: ${{ inputs.service }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Canary deployment rolled back\n*Service:* ${{ inputs.service }}\n*Reason:* Monitoring failed"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
