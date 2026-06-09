@@ -1,0 +1,107 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "docs/**"
+      - "README.md"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "docs/**"
+      - "README.md"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to GitHub Pages"
+        required: false
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  lint-docs:
+    name: Lint Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install markdownlint
+        run: npm install -g markdownlint-cli
+      - name: Lint markdown files
+        run: markdownlint 'docs/**/*.md' README.md
+
+  build-docs:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    needs: lint-docs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install mkdocs
+        run: pip install mkdocs-material mkdocs-openapi
+      - name: Build docs
+        run: mkdocs build --site-dir site/
+      - name: Upload site
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-site
+          path: site/
+
+  validate-api-specs:
+    name: Validate API Specs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install openapi-spec-validator
+        run: pip install openapi-spec-validator pyyaml
+      - name: Validate OpenAPI specs
+        run: |
+          for spec in docs/api/*.yaml; do
+            echo "Validating $spec..."
+            python -c "
+          import yaml
+          from openapi_spec_validator import validate
+          with open('$spec') as f:
+              spec = yaml.safe_load(f)
+          validate(spec)
+          "
+          done
+
+  validate-adr:
+    name: Validate ADRs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check ADR format
+        run: |
+          for adr in docs/architecture/ADR-*.md; do
+            echo "Checking $adr..."
+            head -5 "$adr" | grep -q "^# ADR-" || echo "Warning: $adr may not follow ADR format"
+          done
+
+  publish-docs:
+    name: Publish to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: [build-docs, validate-api-specs]
+    if: github.ref == 'refs/heads/main' && (github.event.inputs.publish == 'true' || github.event_name == 'push')
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

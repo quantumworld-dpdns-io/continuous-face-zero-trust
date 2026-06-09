@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package cfzt.analytics.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message AuthEvent {
+  string event_id = 1;
+  string user_id = 2;
+  string device_id = 3;
+  bool authenticated = 4;
+  float risk_score = 5;
+  string failure_reason = 6;
+  google.protobuf.Timestamp timestamp = 7;
+}
+
+message QuantumAuditEvent {
+  string event_id = 1;
+  string operation = 2;
+  string backend = 3;
+  int32 qubits_used = 4;
+  float fidelity = 5;
+  int64 duration_ms = 6;
+  google.protobuf.Timestamp timestamp = 7;
+}
+
+message SecurityEvent {
+  string event_id = 1;
+  string event_type = 2;
+  string severity = 3;
+  string source_ip = 4;
+  string description = 5;
+  map<string, string> metadata = 6;
+  google.protobuf.Timestamp timestamp = 7;
+}

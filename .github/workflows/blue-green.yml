@@ -1,0 +1,229 @@
+name: Blue-Green Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to deploy"
+        required: true
+        type: choice
+        options:
+          - auth-service
+          - face-ml-service
+          - quantum-rng
+          - pqc-crypto
+          - zk-proofs
+          - edge-gateway
+      version:
+        description: "Version to deploy"
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  CLUSTER_NAME: cfzt-production
+  NAMESPACE: cfzt-production
+
+jobs:
+  determine-active:
+    name: Determine Active Environment
+    runs-on: ubuntu-latest
+    outputs:
+      active: ${{ steps.check.outputs.active }}
+      inactive: ${{ steps.check.outputs.inactive }}
+    steps:
+      - name: Check active environment
+        id: check
+        run: |
+          # Check which environment is currently active
+          ACTIVE=$(kubectl get configmap -n ${{ env.NAMESPACE }} deployment-state -o jsonpath='{.data.active}' 2>/dev/null || echo "blue")
+          if [ "$ACTIVE" = "blue" ]; then
+            echo "active=blue" >> $GITHUB_OUTPUT
+            echo "inactive=green" >> $GITHUB_OUTPUT
+          else
+            echo "active=green" >> $GITHUB_OUTPUT
+            echo "inactive=blue" >> $GITHUB_OUTPUT
+          fi
+
+  deploy-inactive:
+    name: Deploy to Inactive Environment
+    runs-on: ubuntu-latest
+    needs: determine-active
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region us-east-1
+
+      - name: Deploy to inactive environment
+        run: |
+          INACTIVE="${{ needs.determine-active.outputs.inactive }}"
+          VERSION="${{ inputs.version }}"
+          SERVICE="${{ inputs.service }}"
+          
+          # Deploy to inactive environment
+          cat > deployment.yaml << EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: ${SERVICE}-${INACTIVE}
+            namespace: ${{ env.NAMESPACE }}
+          spec:
+            replicas: 3
+            selector:
+              matchLabels:
+                app: ${SERVICE}
+                environment: ${INACTIVE}
+            template:
+              metadata:
+                labels:
+                  app: ${SERVICE}
+                  environment: ${INACTIVE}
+              spec:
+                containers:
+                - name: ${SERVICE}
+                  image: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${SERVICE}:${VERSION}
+          EOF
+          
+          kubectl apply -f deployment.yaml
+          kubectl rollout status deployment/${SERVICE}-${INACTIVE} -n ${{ env.NAMESPACE }} --timeout=300s
+
+  verify-inactive:
+    name: Verify Inactive Environment
+    runs-on: ubuntu-latest
+    needs: deploy-inactive
+    steps:
+      - name: Run health checks
+        run: |
+          INACTIVE="${{ needs.determine-active.outputs.inactive }}"
+          SERVICE="${{ inputs.service }}"
+          
+          # Run health checks on inactive environment
+          kubectl exec -n ${{ env.NAMESPACE }} deploy/${SERVICE}-${INACTIVE} -- curl -sf http://localhost:8080/health || exit 1
+          
+          # Run smoke tests
+          python tests/smoke/test_service.py --service ${SERVICE} --environment ${INACTIVE}
+
+  switch-traffic:
+    name: Switch Traffic
+    runs-on: ubuntu-latest
+    needs: verify-inactive
+    environment: production
+    steps:
+      - name: Switch traffic to inactive
+        run: |
+          INACTIVE="${{ needs.determine-active.outputs.inactive }}"
+          SERVICE="${{ inputs.service }}"
+          
+          # Update service selector
+          kubectl patch service ${SERVICE} -n ${{ env.NAMESPACE }} -p "{\"spec\":{\"selector\":{\"environment\":\"${INACTIVE}\"}}}"
+          
+          # Update deployment state
+          kubectl create configmap deployment-state \
+            --from-literal=active=${INACTIVE} \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+  post-switch-verification:
+    name: Post-Switch Verification
+    runs-on: ubuntu-latest
+    needs: switch-traffic
+    steps:
+      - name: Verify production traffic
+        run: |
+          INACTIVE="${{ needs.determine-active.outputs.inactive }}"
+          
+          # Verify production is using new environment
+          ACTIVE=$(kubectl get configmap -n ${{ env.NAMESPACE }} deployment-state -o jsonpath='{.data.active}')
+          
+          if [ "$ACTIVE" != "$INACTIVE" ]; then
+            echo "::error::Traffic switch failed"
+            exit 1
+          fi
+          
+          # Run production smoke tests
+          python tests/smoke/test_production.py --base-url https://api.cfzt.io
+
+  cleanup-old:
+    name: Cleanup Old Environment
+    runs-on: ubuntu-latest
+    needs: post-switch-verification
+    steps:
+      - name: Scale down old environment
+        run: |
+          ACTIVE="${{ needs.determine-active.outputs.active }}"
+          SERVICE="${{ inputs.service }}"
+          
+          # Scale down old environment
+          kubectl scale deployment ${SERVICE}-${ACTIVE} --replicas=0 -n ${{ env.NAMESPACE }} || true
+
+      - name: Notify
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Blue-green deployment completed: ${{ inputs.service }}:${{ inputs.version }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Blue-green deployment completed\n*Service:* ${{ inputs.service }}\n*Version:* ${{ inputs.version }}\n*Active Environment:* ${{ needs.determine-active.outputs.inactive }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  rollback:
+    name: Rollback
+    runs-on: ubuntu-latest
+    needs: switch-traffic
+    if: failure()
+    steps:
+      - name: Switch back to previous environment
+        run: |
+          ACTIVE="${{ needs.determine-active.outputs.active }}"
+          SERVICE="${{ inputs.service }}"
+          
+          # Switch back to previous active environment
+          kubectl patch service ${SERVICE} -n ${{ env.NAMESPACE }} -p "{\"spec\":{\"selector\":{\"environment\":\"${ACTIVE}\"}}}"
+          
+          # Update deployment state
+          kubectl create configmap deployment-state \
+            --from-literal=active=${ACTIVE} \
+            -n ${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Delete failed deployment
+          INACTIVE="${{ needs.determine-active.outputs.inactive }}"
+          kubectl delete deployment ${SERVICE}-${INACTIVE} -n ${{ env.NAMESPACE }} || true
+
+      - name: Notify
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Blue-green deployment rolled back: ${{ inputs.service }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Blue-green deployment rolled back\n*Service:* ${{ inputs.service }}\n*Reason:* Deployment failed"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

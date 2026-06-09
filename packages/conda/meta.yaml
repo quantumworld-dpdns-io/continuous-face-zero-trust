@@ -1,0 +1,47 @@
+package:
+  name: continuous-face-zero-trust
+  version: "1.0.0"
+  number: 1
+  description: "Continuous Face Zero Trust platform"
+  maintainer: "CFZT Team <team@cfzt.io>"
+  license: MIT
+  homepage: https://github.com/cfzt/continuous-face-zero-trust
+  source:
+    url: https://github.com/cfzt/continuous-face-zero-trust/archive/v1.0.0.tar.gz
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+  build:
+    noarch: python
+    number: 0
+    script: python -m pip install . -vv
+
+requirements:
+  host:
+    - python >=3.10
+    - pip
+    - setuptools
+  run:
+    - python >=3.10
+    - cryptography >=41.0.0
+    - pydantic >=2.0.0
+    - httpx >=0.25.0
+    - numpy >=1.24.0
+
+test:
+  imports:
+    - cfzt
+  commands:
+    - pytest tests/ -v
+
+about:
+  home: https://github.com/cfzt/continuous-face-zero-trust
+  license: MIT
+  license_file: LICENSE
+  summary: "Continuous Face Zero Trust Authentication Platform"
+  description: |
+    The Continuous Face Zero Trust (CFZT) platform provides continuous
+    authentication using facial biometrics, post-quantum cryptography,
+    and zero-knowledge proofs.
+
+extra:
+  recipe-maintainers:
+    - cfzt-team

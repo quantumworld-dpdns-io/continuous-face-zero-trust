@@ -1,0 +1,140 @@
+openapi: "3.1.0"
+info:
+  title: ZK Proofs Service
+  version: "0.1.0"
+  description: Continuous Face Zero Trust — Zero-Knowledge Proof Generation
+servers:
+  - url: http://localhost:8002
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service healthy
+
+  /api/v1/zk/generate:
+    post:
+      summary: Generate ZK proof
+      operationId: generateProof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                public_inputs:
+                  type: string
+                  format: byte
+                private_inputs:
+                  type: string
+                  format: byte
+                circuit_id:
+                  type: string
+                prover_type:
+                  type: string
+                  enum: [groth16, plonk, halo2, bulletproofs]
+                  default: groth16
+      responses:
+        "200":
+          description: Generated proof
+
+  /api/v1/zk/verify:
+    post:
+      summary: Verify ZK proof
+      operationId: verifyProof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                proof:
+                  type: string
+                  format: byte
+                public_inputs:
+                  type: string
+                  format: byte
+                verification_key:
+                  type: string
+                  format: byte
+                circuit_id:
+                  type: string
+      responses:
+        "200":
+          description: Verification result
+
+  /api/v1/zk/face-proof:
+    post:
+      summary: Generate face verification proof
+      operationId: generateFaceProof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                embedding:
+                  type: array
+                  items:
+                    type: number
+                range_min:
+                  type: array
+                  items:
+                    type: number
+                range_max:
+                  type: array
+                  items:
+                    type: number
+                prover_type:
+                  type: string
+      responses:
+        "200":
+          description: Face proof
+
+  /api/v1/zk/liveness-proof:
+    post:
+      summary: Generate liveness proof
+      operationId: generateLivenessProof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                liveness_score:
+                  type: number
+                threshold:
+                  type: number
+                prover_type:
+                  type: string
+      responses:
+        "200":
+          description: Liveness proof
+
+  /api/v1/zk/aggregate:
+    post:
+      summary: Aggregate multiple proofs
+      operationId: aggregateProofs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                proofs:
+                  type: array
+                  items:
+                    type: string
+                    format: byte
+                aggregate_circuit_id:
+                  type: string
+      responses:
+        "200":
+          description: Aggregated proof

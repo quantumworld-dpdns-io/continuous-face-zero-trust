@@ -1,0 +1,41 @@
+name: TypeScript CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'services/edge-gateway/**'
+      - 'pkg/ts/**'
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: cd services/edge-gateway && npm ci
+      - run: cd services/edge-gateway && npx biome check src/
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: cd services/edge-gateway && npm ci
+      - run: cd services/edge-gateway && npx tsc --noEmit
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: cd services/edge-gateway && npm ci
+      - run: cd services/edge-gateway && npx vitest run

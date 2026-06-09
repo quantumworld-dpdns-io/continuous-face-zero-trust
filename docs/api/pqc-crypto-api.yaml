@@ -1,0 +1,141 @@
+openapi: "3.1.0"
+info:
+  title: PQC Crypto Service
+  version: "0.1.0"
+  description: Continuous Face Zero Trust — Post-Quantum Cryptography
+servers:
+  - url: http://localhost:8006
+
+paths:
+  /api/v1/pqc/algorithms:
+    get:
+      summary: List supported PQC algorithms
+      operationId: listAlgorithms
+      responses:
+        "200":
+          description: Supported algorithms
+
+  /api/v1/pqc/kem/encapsulate:
+    post:
+      summary: Encapsulate key (Kyber)
+      operationId: kemEncapsulate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                public_key:
+                  type: string
+                  format: byte
+                algorithm:
+                  type: string
+                  enum: [KYBER_512, KYBER_768, KYBER_1024]
+                  default: KYBER_768
+      responses:
+        "200":
+          description: Ciphertext + shared secret
+
+  /api/v1/pqc/kem/decapsulate:
+    post:
+      summary: Decapsulate key
+      operationId: kemDecapsulate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ciphertext:
+                  type: string
+                  format: byte
+                secret_key:
+                  type: string
+                  format: byte
+                algorithm:
+                  type: string
+      responses:
+        "200":
+          description: Shared secret
+
+  /api/v1/pqc/sign:
+    post:
+      summary: Sign message
+      operationId: sign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  format: byte
+                secret_key:
+                  type: string
+                  format: byte
+                algorithm:
+                  type: string
+                  enum: [DILITHIUM_2, DILITHIUM_3, DILITHIUM_5, FALCON_512, FALCON_1024]
+      responses:
+        "200":
+          description: Signature
+
+  /api/v1/pqc/verify:
+    post:
+      summary: Verify signature
+      operationId: verifySignature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  format: byte
+                signature:
+                  type: string
+                  format: byte
+                public_key:
+                  type: string
+                  format: byte
+                algorithm:
+                  type: string
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+
+  /api/v1/pqc/encrypt:
+    post:
+      summary: Encrypt with hybrid PQC
+      operationId: encrypt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                plaintext:
+                  type: string
+                  format: byte
+                public_key:
+                  type: string
+                  format: byte
+                algorithm:
+                  type: string
+      responses:
+        "200":
+          description: Ciphertext

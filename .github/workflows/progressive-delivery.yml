@@ -1,0 +1,170 @@
+name: Progressive Delivery
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to deploy"
+        required: true
+        type: choice
+        options:
+          - auth-service
+          - face-ml-service
+          - quantum-rng
+          - pqc-crypto
+          - zk-proofs
+          - edge-gateway
+      version:
+        description: "Version to deploy"
+        required: true
+        type: string
+      strategy:
+        description: "Delivery strategy"
+        required: true
+        type: choice
+        options:
+          - canary
+          - blue-green
+          - rolling
+
+env:
+  REGISTRY: ghcr.io
+  CLUSTER_NAME: cfzt-production
+  NAMESPACE: cfzt-production
+
+jobs:
+  progressive-delivery:
+    name: Progressive Delivery
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region us-east-1
+
+      - name: Deploy with strategy
+        run: |
+          STRATEGY="${{ inputs.strategy }}"
+          VERSION="${{ inputs.version }}"
+          SERVICE="${{ inputs.service }}"
+          
+          case $STRATEGY in
+            canary)
+              # Canary deployment
+              kubectl set image deployment/${SERVICE} \
+                ${SERVICE}=${{ env.REGISTRY }}/${{ github.repository_owner }}/${SERVICE}:${VERSION} \
+                -n ${{ env.NAMESPACE }} \
+                --record
+              
+              # Wait for rollout
+              kubectl rollout status deployment/${SERVICE} -n ${{ env.NAMESPACE }} --timeout=300s
+              ;;
+            blue-green)
+              # Blue-green deployment
+              kubectl set image deployment/${SERVICE} \
+                ${SERVICE}=${{ env.REGISTRY }}/${{ github.repository_owner }}/${SERVICE}:${VERSION} \
+                -n ${{ env.NAMESPACE }} \
+                --record
+              
+              kubectl rollout status deployment/${SERVICE} -n ${{ env.NAMESPACE }} --timeout=300s
+              ;;
+            rolling)
+              # Rolling update
+              kubectl set image deployment/${SERVICE} \
+                ${SERVICE}=${{ env.REGISTRY }}/${{ github.repository_owner }}/${SERVICE}:${VERSION} \
+                -n ${{ env.NAMESPACE }} \
+                --record
+              
+              kubectl rollout status deployment/${SERVICE} -n ${{ env.NAMESPACE }} --timeout=600s
+              ;;
+          esac
+
+      - name: Verify deployment
+        run: |
+          SERVICE="${{ inputs.service }}"
+          
+          # Run health checks
+          kubectl exec -n ${{ env.NAMESPACE }} deploy/${SERVICE} -- curl -sf http://localhost:8080/health || exit 1
+          
+          # Run smoke tests
+          python tests/smoke/test_service.py --service ${SERVICE}
+
+      - name: Monitor deployment
+        run: |
+          SERVICE="${{ inputs.service }}"
+          DURATION=300
+          END_TIME=$(($(date +%s) + DURATION))
+          
+          while [ $(date +%s) -lt $END_TIME ]; do
+            echo "$(date): Checking deployment metrics..."
+            
+            # Check error rate
+            ERROR_RATE=$(curl -sf "https://prometheus.cfzt.io/api/v1/query?query=rate(http_requests_total{app='${SERVICE}',status=~'5..'}[5m])" | jq -r '.data.result[0].value[1] // "0"')
+            
+            echo "Error rate: $ERROR_RATE"
+            
+            if (( $(echo "$ERROR_RATE > 0.05" | bc -l) )); then
+              echo "::error::Deployment error rate too high"
+              exit 1
+            fi
+            
+            sleep 30
+          done
+
+      - name: Notify
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Progressive delivery completed: ${{ inputs.service }}:${{ inputs.version }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Progressive delivery completed\n*Service:* ${{ inputs.service }}\n*Version:* ${{ inputs.version }}\n*Strategy:* ${{ inputs.strategy }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  rollback:
+    name: Rollback
+    runs-on: ubuntu-latest
+    needs: progressive-delivery
+    if: failure()
+    steps:
+      - name: Rollback deployment
+        run: |
+          SERVICE="${{ inputs.service }}"
+          kubectl rollout undo deployment/${SERVICE} -n ${{ env.NAMESPACE }}
+
+      - name: Notify
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Progressive delivery rolled back: ${{ inputs.service }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Progressive delivery rolled back\n*Service:* ${{ inputs.service }}\n*Reason:* Delivery failed"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -1,0 +1,15 @@
+apiVersion: v2
+name: cfzt-core
+description: CFZT shared Helm chart for deployment
+type: library
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - zero-trust
+  - face-auth
+  - quantum
+  - pqc
+  - zk-proofs
+maintainers:
+  - name: quantumworld-dpdns-io
+    email: team@quantumworld.example.com

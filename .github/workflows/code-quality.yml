@@ -1,0 +1,87 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  code-analysis:
+    name: Code Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run SonarCloud
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=cfzt_continuous-face-zero-trust
+            -Dsonar.organization=cfzt
+
+  complexity:
+    name: Complexity Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check code complexity
+        run: |
+          echo "Checking code complexity..."
+          find . -name "*.py" -not -path "./.git/*" -not -path "./node_modules/*" | head -20 | while read f; do
+            lines=$(wc -l < "$f")
+            if [ $lines -gt 500 ]; then
+              echo "Warning: $f has $lines lines"
+            fi
+          done
+
+  duplication:
+    name: Duplication Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check code duplication
+        run: |
+          echo "Checking for code duplication..."
+          echo "This is a placeholder for duplication detection"
+
+  dead-code:
+    name: Dead Code Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Run vulture
+        run: |
+          pip install vulture
+          vulture services/ packages/python/ --min-confidence 80
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v3
+        with:
+          fail-on-severity: high
+
+  todo-check:
+    name: TODO Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for TODOs
+        run: |
+          echo "Checking for TODO comments..."
+          TODO_COUNT=$(grep -r "TODO\|FIXME\|HACK\|XXX" --include="*.py" --include="*.ts" --include="*.go" --include="*.rs" . 2>/dev/null | wc -l)
+          echo "Found $TODO_COUNT TODO comments"
+          if [ $TODO_COUNT -gt 50 ]; then
+            echo "::warning::High number of TODO comments ($TODO_COUNT)"
+          fi

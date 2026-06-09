@@ -1,0 +1,148 @@
+name: Performance Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/**"
+      - "tests/robot/performance/**"
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: "Test duration in minutes"
+        required: false
+        default: "60"
+      concurrent_users:
+        description: "Number of concurrent users"
+        required: false
+        default: "100"
+
+env:
+  PYTHON_VERSION: "3.12"
+  BASE_URL: https://staging.cfzt.io
+
+jobs:
+  performance-auth:
+    name: Auth Performance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          pip install robotframework
+          pip install -r tests/robot/requirements.txt
+      - name: Run auth performance tests
+        run: |
+          robot --outputdir reports/performance \
+            -v BASE_URL:${{ env.BASE_URL }} \
+            -v DURATION:${{ github.event.inputs.duration || '60' }} \
+            tests/robot/performance/auth_latency.robot
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-auth-results
+          path: reports/performance/
+
+  performance-face:
+    name: Face ML Performance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          pip install robotframework
+          pip install -r tests/robot/requirements.txt
+      - name: Run face ML performance tests
+        run: |
+          robot --outputdir reports/performance \
+            -v BASE_URL:${{ env.BASE_URL }} \
+            -v CONCURRENT_USERS:${{ github.event.inputs.concurrent_users || '100' }} \
+            tests/robot/performance/face_inference.robot
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-face-results
+          path: reports/performance/
+
+  performance-crypto:
+    name: Crypto Performance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          pip install robotframework
+          pip install -r tests/robot/requirements.txt
+      - name: Run crypto performance tests
+        run: |
+          robot --outputdir reports/performance \
+            -v BASE_URL:${{ env.BASE_URL }} \
+            tests/robot/performance/pqc_encryption.robot
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-crypto-results
+          path: reports/performance/
+
+  performance-zk:
+    name: ZK Proofs Performance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          pip install robotframework
+          pip install -r tests/robot/requirements.txt
+      - name: Run ZK performance tests
+        run: |
+          robot --outputdir reports/performance \
+            -v BASE_URL:${{ env.BASE_URL }} \
+            tests/robot/performance/zk_proving.robot
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-zk-results
+          path: reports/performance/
+
+  performance-report:
+    name: Performance Report
+    runs-on: ubuntu-latest
+    needs: [performance-auth, performance-face, performance-crypto, performance-zk]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: reports/
+      - name: Generate report
+        run: |
+          echo "# Performance Test Report" > report.md
+          echo "Date: $(date -u)" >> report.md
+          echo "" >> report.md
+          echo "## Auth Latency" >> report.md
+          cat reports/perf-auth-results/output.xml 2>/dev/null | grep -o 'stat[^<]*' >> report.md || echo "No data" >> report.md
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report
+          path: report.md

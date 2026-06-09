@@ -1,0 +1,15 @@
+{
+  "description": "Infrastructure metrics",
+  "editable": true,
+  "panels": [
+    {"title": "CPU Usage", "type": "timeseries", "targets": [{"expr": "rate(container_cpu_usage_seconds_total{namespace=\"cfzt\"}[5m])", "refId": "A"}], "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}},
+    {"title": "Memory Usage", "type": "timeseries", "targets": [{"expr": "container_memory_usage_bytes{namespace=\"cfzt\"}", "refId": "A"}], "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}},
+    {"title": "Network I/O", "type": "timeseries", "targets": [{"expr": "rate(container_network_receive_bytes_total{namespace=\"cfzt\"}[5m])", "refId": "A"}], "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}},
+    {"title": "Redis Memory", "type": "timeseries", "targets": [{"expr": "redis_memory_used_bytes", "refId": "A"}], "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}},
+    {"title": "Qdrant Points", "type": "timeseries", "targets": [{"expr": "qdrant_points_total", "refId": "A"}], "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}},
+    {"title": "OTel Spans/sec", "type": "timeseries", "targets": [{"expr": "rate(otelcol_exporter_sent_spans_total[5m])", "refId": "A"}], "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}}
+  ],
+  "tags": ["cfzt", "infrastructure"],
+  "title": "CFZT Infrastructure",
+  "uid": "cfzt-infra"
+}

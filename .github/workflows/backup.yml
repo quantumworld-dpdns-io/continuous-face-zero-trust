@@ -1,0 +1,187 @@
+name: Backup & Restore
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform"
+        required: true
+        type: choice
+        options:
+          - backup
+          - restore
+          - verify
+      backup_id:
+        description: "Backup ID for restore (leave empty for latest)"
+        required: false
+        type: string
+
+env:
+  BACKUP_BUCKET: cfzt-backups
+  RETENTION_DAYS: 30
+
+jobs:
+  backup:
+    name: Backup Data
+    runs-on: ubuntu-latest
+    if: inputs.action == 'backup' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_BACKUP }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_BACKUP }}
+          aws-region: us-east-1
+
+      - name: Generate backup ID
+        id: backup-id
+        run: |
+          BACKUP_ID="backup-$(date +%Y%m%d-%H%M%S)"
+          echo "backup_id=$BACKUP_ID" >> $GITHUB_OUTPUT
+
+      - name: Backup D1 Database
+        run: |
+          echo "Backing up D1 database..."
+          npx wrangler d1 export cfzt-db --output backup-${{ steps.backup-id.outputs.backup_id }}-d1.sql
+
+      - name: Backup KV Store
+        run: |
+          echo "Backing up KV store..."
+          npx wrangler kv:namespace list | jq -r '.[].id' | while read ns_id; do
+            npx wrangler kv:namespace keys $ns_id --prefix "" > backup-${{ steps.backup-id.outputs.backup_id }}-kv-${ns_id}.json
+          done
+
+      - name: Backup R2 Bucket
+        run: |
+          echo "Backing up R2 bucket..."
+          aws s3 sync s3://cfzt-data s3://${{ env.BACKUP_BUCKET }}/${{ steps.backup-id.outputs.backup_id }}/r2/
+
+      - name: Upload backups to S3
+        run: |
+          aws s3 cp backup-${{ steps.backup-id.outputs.backup_id }}-d1.sql s3://${{ env.BACKUP_BUCKET }}/${{ steps.backup-id.outputs.backup_id }}/
+          aws s3 cp backup-${{ steps.backup-id.outputs.backup_id }}-kv-*.json s3://${{ env.BACKUP_BUCKET }}/${{ steps.backup-id.outputs.backup_id }}/kv/
+
+      - name: Create backup manifest
+        run: |
+          cat > backup-manifest.json << EOF
+          {
+            "backup_id": "${{ steps.backup-id.outputs.backup_id }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "components": ["d1", "kv", "r2"],
+            "status": "completed"
+          }
+          EOF
+          aws s3 cp backup-manifest.json s3://${{ env.BACKUP_BUCKET }}/${{ steps.backup-id.outputs.backup_id }}/manifest.json
+
+      - name: Cleanup old backups
+        run: |
+          CUTOFF_DATE=$(date -d "-${{ env.RETENTION_DAYS }} days" +%Y%m%d)
+          aws s3 ls s3://${{ env.BACKUP_BUCKET }}/ | awk '{print $2}' | while read dir; do
+            BACKUP_DATE=$(echo $dir | grep -oP '\d{8}' | head -1)
+            if [ ! -z "$BACKUP_DATE" ] && [ "$BACKUP_DATE" -lt "$CUTOFF_DATE" ]; then
+              echo "Deleting old backup: $dir"
+              aws s3 rm s3://${{ env.BACKUP_BUCKET }}/$dir --recursive
+            fi
+          done
+
+      - name: Notify
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Backup ${{ job.status }}: ${{ steps.backup-id.outputs.backup_id }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Backup ${{ job.status }}\n*Backup ID:* ${{ steps.backup-id.outputs.backup_id }}\n*Components:* d1, kv, r2"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  restore:
+    name: Restore Data
+    runs-on: ubuntu-latest
+    if: inputs.action == 'restore'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_BACKUP }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_BACKUP }}
+          aws-region: us-east-1
+
+      - name: Determine backup ID
+        id: backup-id
+        run: |
+          if [ -n "${{ inputs.backup_id }}" ]; then
+            echo "backup_id=${{ inputs.backup_id }}" >> $GITHUB_OUTPUT
+          else
+            LATEST=$(aws s3 ls s3://${{ env.BACKUP_BUCKET }}/ | sort -r | head -1 | awk '{print $2}' | tr -d '/')
+            echo "backup_id=$LATEST" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download backups
+        run: |
+          aws s3 sync s3://${{ env.BACKUP_BUCKET }}/${{ steps.backup-id.outputs.backup_id }}/ ./restore/
+
+      - name: Restore D1 Database
+        run: |
+          echo "Restoring D1 database..."
+          npx wrangler d1 import cfzt-db ./restore/backup-*-d1.sql
+
+      - name: Notify
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Restore ${{ job.status }} from ${{ steps.backup-id.outputs.backup_id }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Restore ${{ job.status }}\n*Backup ID:* ${{ steps.backup-id.outputs.backup_id }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  verify:
+    name: Verify Backups
+    runs-on: ubuntu-latest
+    if: inputs.action == 'verify'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_BACKUP }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_BACKUP }}
+          aws-region: us-east-1
+
+      - name: List backups
+        run: |
+          echo "Available backups:"
+          aws s3 ls s3://${{ env.BACKUP_BUCKET }}/ | sort -r | head -10
+
+      - name: Verify latest backup
+        run: |
+          LATEST=$(aws s3 ls s3://${{ env.BACKUP_BUCKET }}/ | sort -r | head -1 | awk '{print $2}' | tr -d '/')
+          echo "Verifying backup: $LATEST"
+          aws s3 ls s3://${{ env.BACKUP_BUCKET }}/$LATEST/manifest.json || echo "Warning: No manifest found"

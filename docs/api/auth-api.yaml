@@ -1,0 +1,225 @@
+openapi: "3.1.0"
+info:
+  title: Auth API
+  version: "0.1.0"
+  description: Continuous Face Zero Trust — Authentication Service
+servers:
+  - url: http://localhost:8000
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: health
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  service:
+                    type: string
+
+  /api/v1/auth/login:
+    post:
+      summary: Authenticate with face
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                face_image:
+                  type: string
+                  format: binary
+                device_id:
+                  type: string
+                platform:
+                  type: string
+                  enum: [web, mobile, desktop]
+              required: [face_image, device_id]
+      responses:
+        "200":
+          description: Authentication result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthenticationResult"
+        "401":
+          description: Authentication failed
+
+  /api/v1/auth/continuous-verify:
+    post:
+      summary: Continuous re-verification
+      operationId: continuousVerify
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                face_image:
+                  type: string
+                  format: binary
+                session_token:
+                  type: string
+              required: [face_image, session_token]
+      responses:
+        "200":
+          description: Verification decision
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  continue_session:
+                    type: boolean
+                  risk_score:
+                    $ref: "#/components/schemas/RiskScore"
+
+  /api/v1/enrollment/enroll:
+    post:
+      summary: Enroll face biometrics
+      operationId: enrollFace
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                face_images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                user_id:
+                  type: string
+                tenant_id:
+                  type: string
+                device_id:
+                  type: string
+              required: [face_images, user_id]
+      responses:
+        "200":
+          description: Enrollment result
+
+  /api/v1/tokens/refresh:
+    post:
+      summary: Refresh access token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+              required: [refresh_token]
+      responses:
+        "200":
+          description: New token pair
+        "401":
+          description: Invalid refresh token
+
+  /api/v1/sessions/{session_id}:
+    get:
+      summary: Get session details
+      operationId: getSession
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session data
+        "404":
+          description: Session not found
+    delete:
+      summary: Revoke session
+      operationId: revokeSession
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session revoked
+
+components:
+  schemas:
+    AuthenticationResult:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+        session_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        session_id:
+          type: string
+        risk_score:
+          $ref: "#/components/schemas/RiskScore"
+        liveness:
+          $ref: "#/components/schemas/LivenessResult"
+        zk_proof:
+          $ref: "#/components/schemas/ZKProofResult"
+        reason:
+          type: string
+
+    RiskScore:
+      type: object
+      properties:
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+        level:
+          type: string
+          enum: [low, medium, high, critical]
+        factors:
+          type: array
+          items:
+            type: string
+
+    LivenessResult:
+      type: object
+      properties:
+        passed:
+          type: boolean
+        confidence:
+          type: number
+        check_scores:
+          type: object
+        failed_checks:
+          type: array
+          items:
+            type: string
+
+    ZKProofResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        proof:
+          type: string
+          format: byte
+        circuit_id:
+          type: string

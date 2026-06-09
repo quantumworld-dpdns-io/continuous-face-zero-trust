@@ -1,0 +1,178 @@
+openapi: "3.1.0"
+info:
+  title: Face ML Service
+  version: "0.1.0"
+  description: Continuous Face Zero Trust — Face ML Pipeline
+servers:
+  - url: http://localhost:8001
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service healthy
+
+  /api/v1/face/detect:
+    post:
+      summary: Detect faces in image
+      operationId: detectFace
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Detected faces
+
+  /api/v1/face/embed:
+    post:
+      summary: Generate face embedding
+      operationId: generateEmbedding
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Face embedding (512-d vector)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  embedding:
+                    type: array
+                    items:
+                      type: number
+                  dimension:
+                    type: integer
+                  model_version:
+                    type: string
+
+  /api/v1/face/compare:
+    post:
+      summary: Compare two face embeddings
+      operationId: compareFaces
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                embedding_a:
+                  type: array
+                  items:
+                    type: number
+                embedding_b:
+                  type: array
+                  items:
+                    type: number
+                threshold:
+                  type: number
+      responses:
+        "200":
+          description: Comparison result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  similarity:
+                    type: number
+                  match:
+                    type: boolean
+                  confidence:
+                    type: number
+
+  /api/v1/face/liveness:
+    post:
+      summary: Detect liveness (anti-spoofing)
+      operationId: detectLiveness
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+      parameters:
+        - name: checks
+          in: query
+          schema:
+            type: string
+            default: "blink,depth,texture,anti_spoof"
+      responses:
+        "200":
+          description: Liveness result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  live:
+                    type: boolean
+                  confidence:
+                    type: number
+                  check_scores:
+                    type: object
+                  failed_checks:
+                    type: array
+                    items:
+                      type: string
+
+  /api/v1/face/search:
+    post:
+      summary: Search similar faces
+      operationId: searchSimilar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                embedding:
+                  type: array
+                  items:
+                    type: number
+                top_k:
+                  type: integer
+                  default: 5
+                filters:
+                  type: object
+      responses:
+        "200":
+          description: Search results
+
+  /api/v1/face/quantum-embed:
+    post:
+      summary: Generate quantum-enhanced embedding
+      operationId: quantumEmbed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                num_qubits:
+                  type: integer
+                  default: 4
+                ansatz_type:
+                  type: string
+                  enum: [hardware_efficient, UCCSD, strong_entanglement]
+      responses:
+        "200":
+          description: Quantum-enhanced embedding

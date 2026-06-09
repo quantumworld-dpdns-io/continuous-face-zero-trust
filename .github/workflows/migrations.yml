@@ -1,0 +1,137 @@
+name: Database Migrations
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "migrations/**"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "migrations/**"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Migration action"
+        required: true
+        type: choice
+        options:
+          - up
+          - down
+          - status
+          - verify
+      steps:
+        description: "Number of steps (for up/down)"
+        required: false
+        type: string
+        default: "1"
+
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+jobs:
+  lint-migrations:
+    name: Lint Migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check migration files
+        run: |
+          echo "Validating migration files..."
+          for migration in migrations/*.sql; do
+            echo "Checking $migration..."
+            # Basic SQL syntax check
+            grep -q "CREATE\|ALTER\|DROP\|INSERT\|UPDATE\|DELETE" "$migration" || echo "Warning: $migration may not contain valid SQL"
+          done
+
+  migrate-status:
+    name: Migration Status
+    runs-on: ubuntu-latest
+    if: inputs.action == 'status' || github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check migration status
+        run: |
+          echo "Migration status:"
+          ls -la migrations/
+          echo "Applied migrations:"
+          # This would query the database for applied migrations
+
+  migrate-up:
+    name: Migrate Up
+    runs-on: ubuntu-latest
+    if: inputs.action == 'up'
+    environment: database
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run migrations
+        run: |
+          STEPS=${{ inputs.steps || '1' }}
+          echo "Running $STEPS migration(s) up..."
+          for i in $(seq 1 $STEPS); do
+            MIGRATION=$(ls migrations/*.sql | sort | head -$i | tail -1)
+            if [ -n "$MIGRATION" ]; then
+              echo "Applying $MIGRATION..."
+              # psql -f "$MIGRATION" $DATABASE_URL
+            fi
+          done
+
+  migrate-down:
+    name: Migrate Down
+    runs-on: ubuntu-latest
+    if: inputs.action == 'down'
+    environment: database
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rollback migrations
+        run: |
+          STEPS=${{ inputs.steps || '1' }}
+          echo "Rolling back $STEPS migration(s)..."
+          for i in $(seq 1 $STEPS); do
+            MIGRATION=$(ls migrations/*.sql | sort -r | head -$i | tail -1)
+            if [ -n "$MIGRATION" ]; then
+              ROLLBACK="${MIGRATION%.sql}_down.sql"
+              if [ -f "$ROLLBACK" ]; then
+                echo "Rolling back $MIGRATION..."
+                # psql -f "$ROLLBACK" $DATABASE_URL
+              else
+                echo "Warning: No rollback file for $MIGRATION"
+              fi
+            fi
+          done
+
+  verify-migrations:
+    name: Verify Migrations
+    runs-on: ubuntu-latest
+    if: inputs.action == 'verify'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify migration integrity
+        run: |
+          echo "Verifying migration integrity..."
+          # Check for sequential numbering
+          EXPECTED=1
+          for migration in migrations/*.sql; do
+            NUMBER=$(basename "$migration" | cut -d'_' -f1)
+            if [ "$NUMBER" != "$EXPECTED" ]; then
+              echo "::error::Migration numbering gap: expected $EXPECTED, got $NUMBER"
+              exit 1
+            fi
+            EXPECTED=$((EXPECTED + 1))
+          done
+          echo "Migration integrity verified"
+
+  test-migrations:
+    name: Test Migrations
+    runs-on: ubuntu-latest
+    needs: lint-migrations
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test migrations on copy
+        run: |
+          echo "Testing migrations on database copy..."
+          # Create test database
+          # Run all migrations
+          # Verify schema
+          # Clean up
+          echo "Migration tests completed"

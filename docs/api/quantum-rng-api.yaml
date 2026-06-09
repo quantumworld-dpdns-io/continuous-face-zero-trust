@@ -1,0 +1,79 @@
+openapi: "3.1.0"
+info:
+  title: Quantum RNG Service
+  version: "0.1.0"
+  description: Continuous Face Zero Trust — Quantum Random Number Generation
+servers:
+  - url: http://localhost:8003
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service healthy
+
+  /api/v1/quantum/rng/generate:
+    post:
+      summary: Generate quantum random bytes
+      operationId: generateRandom
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                num_bits:
+                  type: integer
+                  default: 256
+                  minimum: 1
+                  maximum: 10000
+                purpose:
+                  type: string
+                  enum: [session_key, nonce, iv, general]
+                backend:
+                  type: string
+                  enum: [local_simulator, ibm_quantum, cuda_q, aws_braket]
+              required: [num_bits]
+      responses:
+        "200":
+          description: Random bytes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  random_bytes:
+                    type: string
+                    format: byte
+                  num_bits:
+                    type: integer
+                  backend_used:
+                    type: string
+                  min_entropy:
+                    type: number
+                  nist_test_passed:
+                    type: boolean
+
+  /api/v1/quantum/rng/health:
+    get:
+      summary: Quantum backend health
+      operationId: quantumHealth
+      responses:
+        "200":
+          description: Backend status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  healthy:
+                    type: boolean
+                  backend:
+                    type: string
+                  queue_depth:
+                    type: integer
+                  avg_latency_ms:
+                    type: number

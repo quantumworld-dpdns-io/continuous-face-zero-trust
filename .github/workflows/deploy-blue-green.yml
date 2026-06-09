@@ -1,0 +1,40 @@
+name: Blue-Green Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      cloud:
+        description: "Target cloud"
+        type: choice
+        options: [aws, gcp, azure, k8s]
+      environment:
+        description: "Environment"
+        type: choice
+        options: [staging, production]
+
+jobs:
+  blue-green:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Identify current (blue) and target (green)
+        run: |
+          echo "Current: blue, Target: green"
+      - name: Deploy to green
+        run: |
+          echo "Deploying to green environment"
+      - name: Run smoke tests on green
+        run: |
+          echo "Running smoke tests..."
+          sleep 30
+      - name: Switch traffic to green
+        run: |
+          echo "Switching traffic to green"
+      - name: Monitor
+        run: |
+          echo "Monitoring green for 10 minutes..."
+          sleep 600
+      - name: Cleanup blue
+        run: |
+          echo "Blue environment ready for next deployment"

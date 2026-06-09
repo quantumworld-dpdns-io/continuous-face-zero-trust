@@ -1,0 +1,51 @@
+name: Python CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'services/auth-api/**'
+      - 'services/face-ml/**'
+      - 'services/quantum-*/**'
+      - 'services/pqc-crypto/**'
+      - 'services/cache-store/**'
+      - 'services/vector-db/**'
+      - 'pkg/python/**'
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check services/ pkg/python/
+      - run: ruff format --check services/ pkg/python/
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install mypy
+      - run: mypy services/auth-api/app/ --ignore-missing-imports
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest httpx pydantic pydantic-settings
+      - run: python -m pytest services/auth-api/tests/ -x --tb=short

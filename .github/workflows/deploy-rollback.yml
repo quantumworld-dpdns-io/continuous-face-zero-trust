@@ -1,0 +1,36 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to rollback"
+        type: choice
+        options: [auth-api, face-ml, zk-proofs, quantum-rng, pqc-crypto, edge-gateway, all]
+      environment:
+        description: "Environment"
+        type: choice
+        options: [staging, production]
+      revision:
+        description: "Revision to rollback to (empty = previous)"
+        type: string
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rollback ${{ inputs.service }}
+        run: |
+          if [ "${{ inputs.service }}" = "all" ]; then
+            kubectl -n cfzt rollout undo deployment --all
+          else
+            kubectl -n cfzt rollout undo deployment/${{ inputs.service }}
+          fi
+      - name: Verify rollback
+        run: |
+          kubectl -n cfzt rollout status deployment/${{ inputs.service }} --timeout=120s
+      - name: Notify
+        run: |
+          echo "Rollback of ${{ inputs.service }} in ${{ inputs.environment }} complete"

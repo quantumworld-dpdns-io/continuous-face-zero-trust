@@ -1,0 +1,106 @@
+log_level: info
+log_format: json
+log Destinations:
+  - stdout
+
+listen:
+  port: 4040
+  host: 0.0.0.0
+  log_level: info
+
+app:
+  runtime_stats_interval: 1m
+  enable_attribution: false
+  enable_fid: false
+  enable_exec: false
+
+storage:
+  type: local
+  local:
+    dir: /var/lib/pyroscope/data
+  cache:
+    type: in-memory
+    size_bytes: 1073741824
+
+auth:
+  signup:
+    default_role: admin
+    disabled: false
+
+server:
+  http_listen_port: 4040
+  grpc_listen_port: 9095
+  http_server_read_timeout: 0s
+  http_server_write_timeout: 0s
+  http_server_idle_timeout: 0s
+  grpc_server_max_recv_msg_size: 4194304
+  grpc_server_max_send_msg_size: 4194304
+  grpc_server_keepalive_enforcement_min_time: 5m
+  log_source_ip: false
+
+metrics:
+  enabled: true
+  listen_port: 4040
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  basic_auth_username: admin
+  basic_auth_password: admin
+  push_endpoint: http://pyroscope.monitoring.svc.cluster.local:4040/api/v1/push
+  histogram_buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+  histogram_buckets_seconds: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+  histogram_buckets_bytes: [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
+  histogram_buckets_rssi: [-90, -80, -70, -60, -50, -40, -30, -20, -10, 0]
+  histogram_buckets_response_time: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+  histogram_buckets_request_body_size: [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
+
+ingester:
+  max_ingest_size_bytes: 4194304
+  flush_interval: 10s
+  flush_timeout: 10s
+  flush_at: 0.5
+  flush_concurrency: 1
+  max_block_duration: 1h
+  max_block_size: 524288000
+  max_block_metadata_size: 524288000
+  max_block_metadata_age: 168h
+
+querier:
+  timeout: 30s
+  max_concurrent: 8
+  prefer_querier_split_streams: false
+
+query_timeout: 30s
+
+storage_config:
+  dynpath:
+    enabled: true
+    interval: 10s
+
+compaction:
+  enabled: true
+  interval: 10m
+  retention:
+    enabled: true
+    delete_after: 168h
+
+limits:
+  max_query_length: 168h
+  max_query_parallelism: 32
+  max_entries_limit_per_query: 10000
+  max_series_per_query: 100000
+
+overrides:
+  per_tenant_overrides: {}
+
+applications:
+  enabled: true
+  scrape_integration: true
+  scrape_url: "http://localhost:4040/render?app={app.name}"
+  scrape_path: /render
+  scrape_timeout: 10s
+
+pyroscope_http:
+  address: http://pyroscope.monitoring.svc.cluster.local:4040
+
+log_level: info
+log_format: json

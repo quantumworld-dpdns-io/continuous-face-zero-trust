@@ -1,0 +1,19 @@
+name: Run Quantum Simulation
+description: Run local quantum simulation
+inputs:
+  backend:
+    description: Quantum backend (local_simulator, statevector)
+    required: false
+    default: 'local_simulator'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - run: pip install qiskit qiskit-aer numpy
+      shell: bash
+    - run: python -m services.quantum_rng.app.rng.local_simulator
+      shell: bash
+      env:
+        QUANTUM_BACKEND: ${{ inputs.backend }}

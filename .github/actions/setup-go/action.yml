@@ -1,0 +1,13 @@
+name: Setup Go
+description: Setup Go environment
+inputs:
+  go-version:
+    description: Go version
+    required: false
+    default: '1.22'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}

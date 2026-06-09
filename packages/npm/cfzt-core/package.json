@@ -1,0 +1,14 @@
+{
+  "name": "cfzt-core",
+  "version": "0.1.0",
+  "description": "Shared TypeScript library for Continuous Face Zero Trust",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "license": "MIT",
+  "engines": {"node": ">=22"}
+}

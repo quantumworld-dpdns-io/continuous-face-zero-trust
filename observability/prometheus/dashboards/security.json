@@ -1,0 +1,15 @@
+{
+  "description": "Security monitoring dashboard",
+  "editable": true,
+  "panels": [
+    {"title": "Security Incidents", "type": "timeseries", "targets": [{"expr": "rate(cfzt_security_incidents_total[5m])", "refId": "A"}], "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}},
+    {"title": "Rate Limited Requests", "type": "timeseries", "targets": [{"expr": "rate(cfzt_rate_limit_rejected_total[5m])", "refId": "A"}], "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}},
+    {"title": "Failed Authentications", "type": "timeseries", "targets": [{"expr": "rate(cfzt_auth_failures_total[5m])", "refId": "A"}], "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}},
+    {"title": "ZK Proof Failures", "type": "timeseries", "targets": [{"expr": "rate(cfzt_zk_proof_failures_total[5m])", "refId": "A"}], "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}},
+    {"title": "PQC Operations", "type": "timeseries", "targets": [{"expr": "rate(cfzt_pqc_operations_total[5m])", "legendFormat": "{{algorithm}}", "refId": "A"}], "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}},
+    {"title": "Quantum Threat Level", "type": "stat", "targets": [{"expr": "cfzt_quantum_threat_level", "refId": "A"}], "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}}
+  ],
+  "tags": ["cfzt", "security"],
+  "title": "CFZT Security",
+  "uid": "cfzt-security"
+}

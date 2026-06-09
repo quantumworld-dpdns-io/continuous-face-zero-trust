@@ -1,0 +1,235 @@
+openapi: 3.1.0
+info:
+  title: Analytics Service API
+  description: Analytics API for CFZT system
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: api@cfzt.io
+
+servers:
+  - url: https://api.cfzt.io
+    description: Production server
+  - url: https://staging-api.cfzt.io
+    description: Staging server
+  - url: http://localhost:8093
+    description: Local development server
+
+paths:
+  /api/v1/analytics/query:
+    post:
+      summary: Execute query
+      description: Execute analytics query
+      operationId: executeQuery
+      tags:
+        - Queries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/analytics/reports:
+    post:
+      summary: Generate report
+      description: Generate analytics report
+      operationId: generateReport
+      tags:
+        - Reports
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportRequest'
+      responses:
+        '200':
+          description: Report generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/analytics/metrics:
+    get:
+      summary: Get metrics
+      description: Get system metrics
+      operationId: getMetrics
+      tags:
+        - Metrics
+      parameters:
+        - name: start_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: metrics
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        '200':
+          description: Metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+
+components:
+  schemas:
+    QueryRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          description: SQL query
+        parameters:
+          type: array
+          items:
+            type: object
+          description: Query parameters
+        format:
+          type: string
+          enum:
+            - json
+            - csv
+            - table
+          description: Response format
+          default: json
+
+    QueryResponse:
+      type: object
+      properties:
+        columns:
+          type: array
+          items:
+            type: string
+          description: Column names
+        rows:
+          type: array
+          items:
+            type: array
+          description: Query rows
+        row_count:
+          type: integer
+          description: Number of rows
+        execution_time_ms:
+          type: integer
+          description: Execution time in milliseconds
+
+    ReportRequest:
+      type: object
+      required:
+        - report_type
+        - start_time
+        - end_time
+      properties:
+        report_type:
+          type: string
+          enum:
+            - auth_summary
+            - user_activity
+            - security_events
+            - performance
+            - compliance
+          description: Report type
+        start_time:
+          type: string
+          format: date-time
+          description: Start time
+        end_time:
+          type: string
+          format: date-time
+          description: End time
+        filters:
+          type: object
+          description: Report filters
+
+    ReportResponse:
+      type: object
+      properties:
+        report_id:
+          type: string
+          description: Report ID
+        report_type:
+          type: string
+          description: Report type
+        data:
+          type: object
+          description: Report data
+        generated_at:
+          type: string
+          format: date-time
+          description: Generation time
+
+    MetricsResponse:
+      type: object
+      properties:
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/Metric'
+          description: Metrics data
+
+    Metric:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Metric name
+        value:
+          type: number
+          format: float
+          description: Metric value
+        timestamp:
+          type: string
+          format: date-time
+          description: Metric timestamp
+        labels:
+          type: object
+          description: Metric labels
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Error details

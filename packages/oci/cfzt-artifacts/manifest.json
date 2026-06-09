@@ -1,0 +1,12 @@
+{
+  "artifactType": "application/vnd.oci.image.manifest.v1+json",
+  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+  "digest": "sha256:placeholder",
+  "size": 0,
+  "annotations": {
+    "org.opencontainers.image.title": "cfzt-artifacts",
+    "org.opencontainers.image.description": "Continuous Face Zero Trust OCI artifacts",
+    "org.opencontainers.image.version": "0.1.0",
+    "org.opencontainers.image.vendor": "quantumworld-dpdns-io"
+  }
+}

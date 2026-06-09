@@ -1,0 +1,77 @@
+name: CI - Go Services
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "services/zk-proofs/**"
+      - "packages/go/**"
+      - "tests/go/**"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "services/zk-proofs/**"
+      - "packages/go/**"
+      - "tests/go/**"
+
+env:
+  GO_VERSION: "1.21"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Run gofmt
+        run: test -z "$(gofmt -l .)"
+      - name: Run go vet
+        run: go vet ./...
+      - name: Run staticcheck
+        uses: dominikh/staticcheck-action@v1
+        with:
+          version: latest
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.out
+          fail_ci_if_error: false
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      matrix:
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -o cfzt-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/cfzt
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cfzt-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: cfzt-${{ matrix.goos }}-${{ matrix.goarch }}
