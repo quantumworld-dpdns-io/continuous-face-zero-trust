@@ -1,0 +1,18 @@
+version: v2
+plugins:
+  - remote: buf.build/protocolbuffers/python
+    out: gen/python
+  - remote: buf.build/grpc/python
+    out: gen/python
+  - remote: buf.build/protocolbuffers/rust
+    out: gen/rust
+  - remote: buf.build/grpc/rust
+    out: gen/rust
+  - remote: buf.build/protocolbuffers/go
+    out: gen/go
+  - remote: buf.build/grpc/go
+    out: gen/go
+  - remote: buf.build/protocolbuffers/typescript
+    out: gen/ts
+  - remote: buf.build/grpc/typescript
+    out: gen/ts
