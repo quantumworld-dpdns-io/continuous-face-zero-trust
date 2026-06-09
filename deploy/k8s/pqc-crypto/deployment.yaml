@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pqc-crypto
+  namespace: cfzt
+  labels:
+    app: pqc-crypto
+    component: post-quantum-crypto
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pqc-crypto
+  template:
+    metadata:
+      labels:
+        app: pqc-crypto
+        component: post-quantum-crypto
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: pqc-crypto
+          image: cfzt/pqc-crypto:latest
+          ports:
+            - name: http
+              containerPort: 8006
+              protocol: TCP
+            - name: grpc
+              containerPort: 50055
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: pqc-crypto-config
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8006
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8006
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
