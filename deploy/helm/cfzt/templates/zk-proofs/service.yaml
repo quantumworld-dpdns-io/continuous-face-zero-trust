@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cfzt.fullname" . }}-zk-proofs
+  namespace: {{ include "cfzt.namespace" . }}
+  labels:
+    {{- include "cfzt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zero-knowledge
+spec:
+  type: {{ .Values.zkProofs.service.type | default "ClusterIP" }}
+  selector:
+    {{- include "cfzt.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: zero-knowledge
+  ports:
+    - name: http
+      port: {{ .Values.zkProofs.service.port | default 8002 }}
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: {{ .Values.zkProofs.grpc.port | default 50053 }}
+      targetPort: grpc
+      protocol: TCP
