@@ -1,0 +1,187 @@
+openapi: 3.1.0
+info:
+  title: Quantum RNG Service API
+  description: Quantum Random Number Generation API for CFZT system
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: api@cfzt.io
+
+servers:
+  - url: https://api.cfzt.io
+    description: Production server
+  - url: https://staging-api.cfzt.io
+    description: Staging server
+  - url: http://localhost:8085
+    description: Local development server
+
+paths:
+  /api/v1/quantum/rng/generate:
+    post:
+      summary: Generate random numbers
+      description: Generate quantum random numbers
+      operationId: generateRandom
+      tags:
+        - QRNG
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateRequest'
+      responses:
+        '200':
+          description: Random numbers generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: QRNG unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/quantum/rng/health:
+    get:
+      summary: Get QRNG health
+      description: Get QRNG health status
+      operationId: getHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/v1/quantum/rng/pool:
+    get:
+      summary: Get entropy pool
+      description: Get entropy pool status
+      operationId: getEntropyPool
+      tags:
+        - Entropy
+      responses:
+        '200':
+          description: Entropy pool status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntropyPoolResponse'
+
+components:
+  schemas:
+    GenerateRequest:
+      type: object
+      required:
+        - num_bits
+      properties:
+        num_bits:
+          type: integer
+          description: Number of random bits to generate
+          minimum: 1
+          maximum: 65536
+        purpose:
+          type: string
+          enum:
+            - token
+            - nonce
+            - zk_proof
+            - key_derivation
+          description: Purpose of random numbers
+        require_hardware:
+          type: boolean
+          description: Require hardware QRNG (fail if unavailable)
+
+    GenerateResponse:
+      type: object
+      properties:
+        random_data:
+          type: string
+          format: byte
+          description: Base64 encoded random data
+        source:
+          type: string
+          enum:
+            - hardware
+            - simulator
+            - hybrid
+          description: Random source
+        min_entropy:
+          type: number
+          format: float
+          description: Minimum entropy per bit
+        health_passed:
+          type: boolean
+          description: Whether health tests passed
+        num_bits:
+          type: integer
+          description: Number of bits generated
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+          description: Health status
+        hardware_available:
+          type: boolean
+          description: Hardware QRNG available
+        simulator_available:
+          type: boolean
+          description: Simulator available
+        last_health_check:
+          type: string
+          format: date-time
+          description: Last health check time
+        health_tests_passed:
+          type: integer
+          description: Number of health tests passed
+        health_tests_failed:
+          type: integer
+          description: Number of health tests failed
+
+    EntropyPoolResponse:
+      type: object
+      properties:
+        pool_size_bits:
+          type: integer
+          description: Pool size in bits
+        available_bits:
+          type: integer
+          description: Available bits
+        fill_rate:
+          type: number
+          format: float
+          description: Fill rate (0-1)
+        last_refill:
+          type: string
+          format: date-time
+          description: Last refill time
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Error details
