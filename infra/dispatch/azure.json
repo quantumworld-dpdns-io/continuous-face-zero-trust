@@ -1,0 +1,8 @@
+{
+  "provider": "azure",
+  "services": ["auth-api", "face-ml", "zk-proofs", "pqc-crypto"],
+  "cluster": "aks",
+  "region": "eastus",
+  "deploy_command": "az aks get-credentials --resource-group cfzt --name cfzt-cluster && kubectl apply -k deploy/k8s/",
+  "environment": "production"
+}
