@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package cfzt.face.v1;
+
+import "common/v1/identifiers.proto";
+import "google/protobuf/timestamp.proto";
+
+service FaceService {
+  rpc DetectFace(DetectFaceRequest) returns (DetectFaceResponse);
+  rpc GenerateEmbedding(GenerateEmbeddingRequest) returns (GenerateEmbeddingResponse);
+  rpc CompareEmbeddings(CompareRequest) returns (CompareResponse);
+  rpc DetectLiveness(DetectLivenessRequest) returns (DetectLivenessResponse);
+  rpc SearchSimilar(SearchSimilarRequest) returns (SearchSimilarResponse);
+  rpc GenerateQuantumEmbedding(QuantumEmbeddingRequest) returns (QuantumEmbeddingResponse);
+}
+
+message DetectFaceRequest {
+  bytes image = 1;
+  bool include_landmarks = 2;
+  bool include_bbox = 3;
+}
+
+message DetectFaceResponse {
+  bool detected = 1;
+  repeated Face face = 2;
+  int32 face_count = 3;
+}
+
+message Face {
+  BoundingBox bbox = 1;
+  repeated Point landmarks = 2;
+  float confidence = 3;
+}
+
+message BoundingBox {
+  float x1 = 1;
+  float y1 = 2;
+  float x2 = 3;
+  float y2 = 4;
+}
+
+message Point {
+  float x = 1;
+  float y = 2;
+}
+
+message GenerateEmbeddingRequest {
+  bytes image = 1;
+  UUID enrollment_id = 2;
+  bool quantum_enhanced = 3;
+}
+
+message GenerateEmbeddingResponse {
+  repeated float embedding = 1;
+  int32 dimension = 2;
+  string model_version = 3;
+  google.protobuf.Timestamp generated_at = 4;
+  string embedding_type = 5;
+}
+
+message CompareRequest {
+  repeated float embedding_a = 1;
+  repeated float embedding_b = 2;
+  float threshold = 3;
+}
+
+message CompareResponse {
+  float similarity = 1;
+  bool match = 2;
+  float confidence = 3;
+}
+
+message DetectLivenessRequest {
+  bytes image = 1;
+  repeated LivenessCheck checks = 2;
+}
+
+enum LivenessCheck {
+  LIVENESS_CHECK_UNSPECIFIED = 0;
+  LIVENESS_CHECK_BLINK = 1;
+  LIVENESS_CHECK_DEPTH = 2;
+  LIVENESS_CHECK_TEXTURE = 3;
+  LIVENESS_CHECK_ANTI_SPOOF = 4;
+}
+
+message DetectLivenessResponse {
+  bool live = 1;
+  float confidence = 2;
+  map<string, float> check_scores = 3;
+  repeated string failed_checks = 4;
+  google.protobuf.Timestamp checked_at = 5;
+}
+
+message SearchSimilarRequest {
+  repeated float query_embedding = 1;
+  int32 top_k = 2;
+  float min_score = 3;
+  map<string, string> filters = 4;
+}
+
+message SearchSimilarResponse {
+  repeated SearchResult results = 1;
+  int32 total_found = 2;
+}
+
+message SearchResult {
+  UUID id = 1;
+  float score = 2;
+  map<string, string> metadata = 3;
+}
+
+message QuantumEmbeddingRequest {
+  bytes image = 1;
+  int32 num_qubits = 2;
+  string ansatz_type = 3;
+}
+
+message QuantumEmbeddingResponse {
+  repeated float embedding = 1;
+  bytes quantum_circuit = 2;
+  float quantum_advantage_score = 3;
+  string backend_used = 4;
+}
