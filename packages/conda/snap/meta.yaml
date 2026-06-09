@@ -1,0 +1,30 @@
+package:
+  name: cfzt
+  version: "0.1.0"
+  channel: conda-forge
+  description: Continuous Face Zero Trust — shared Python package
+  url: https://github.com/quantumworld-dpdns-io/continuous-face-zero-trust
+  license: MIT
+  summary: Privacy-preserving face-based zero-trust authentication
+
+build:
+  noarch: python
+  number: 0
+  script: pip install . -vv
+
+requirements:
+  host:
+    - python >=3.12
+    - pip
+  run:
+    - python >=3.12
+    - pydantic >=2.7
+    - cryptography >=42.0
+    - python-jose >=3.3
+
+test:
+  imports:
+    - cfzt
+    - cfzt.crypto
+    - cfzt.errors
+    - cfzt.models
