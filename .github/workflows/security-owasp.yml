@@ -1,0 +1,65 @@
+name: OWASP Top 10 Security Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  owasp-tests:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+      qdrant:
+        image: qdrant/qdrant:v1.9.2
+        ports: [6333:6333]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install robotframework robotframework-requests robotframework-jsonlibrary
+          pip install ruff bandit safety
+      - name: Run Bandit (Python SAST)
+        run: bandit -r services/ pkg/python/ -f json -o bandit-report.json || true
+      - name: Run Safety (dependency check)
+        run: safety check --json > safety-report.json || true
+      - name: Start services
+        run: docker compose up -d
+      - name: Wait for services
+        run: sleep 30
+      - name: Run OWASP Top 10 Robot Framework Tests
+        run: |
+          robot --outputdir test-results/owasp \
+            --loglevel DEBUG \
+            tests/robot/owasp/
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: owasp-test-results
+          path: test-results/owasp/
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+      - name: Enforce security gates
+        run: |
+          python -c "
+          import json
+          with open('bandit-report.json') as f:
+              data = json.load(f)
+              high = [r for r in data.get('results', []) if r['issue_severity'] == 'HIGH']
+              if high:
+                  print(f'FAIL: {len(high)} HIGH severity issues')
+                  exit(1)
+          print('PASS: No HIGH severity issues')
+          "
