@@ -1,0 +1,124 @@
+name: Dependency Updates
+
+on:
+  push:
+    branches: [main, develop]
+  schedule:
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  python-deps:
+    name: Update Python Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pip-tools
+        run: pip install pip-tools
+      - name: Update Python dependencies
+        run: |
+          if [ -f requirements.in ]; then
+            pip-compile requirements.in --output-file=requirements.txt --upgrade
+          fi
+          if [ -f dev-requirements.in ]; then
+            pip-compile dev-requirements.in --output-file=dev-requirements.txt --upgrade
+          fi
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update Python dependencies"
+          title: "chore: update Python dependencies"
+          body: "Automated Python dependency updates"
+          branch: deps/python
+
+  node-deps:
+    name: Update Node Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Update Node dependencies
+        working-directory: packages/javascript
+        run: |
+          npm update
+          npm audit fix
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update Node.js dependencies"
+          title: "chore: update Node.js dependencies"
+          body: "Automated Node.js dependency updates"
+          branch: deps/node
+
+  go-deps:
+    name: Update Go Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: Update Go dependencies
+        working-directory: packages/go
+        run: |
+          go get -u ./...
+          go mod tidy
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update Go dependencies"
+          title: "chore: update Go dependencies"
+          body: "Automated Go dependency updates"
+          branch: deps/go
+
+  rust-deps:
+    name: Update Rust Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-edit
+        run: cargo install cargo-edit
+      - name: Update Rust dependencies
+        working-directory: packages/rust
+        run: |
+          cargo update
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update Rust dependencies"
+          title: "chore: update Rust dependencies"
+          body: "Automated Rust dependency updates"
+          branch: deps/rust
+
+  github-actions:
+    name: Update GitHub Actions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update GitHub Actions
+        uses: dependabot/fetch-metadata@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create PR
+        if: steps.dependabot.outputs.update-type == 'version-update:semver-major'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update GitHub Actions"
+          title: "chore: update GitHub Actions"
+          body: "Automated GitHub Actions updates"
+          branch: deps/github-actions
