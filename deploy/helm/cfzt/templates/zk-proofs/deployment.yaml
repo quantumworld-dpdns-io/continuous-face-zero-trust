@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cfzt.fullname" . }}-zk-proofs
+  namespace: {{ include "cfzt.namespace" . }}
+  labels:
+    {{- include "cfzt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zero-knowledge
+spec:
+  replicas: {{ .Values.zkProofs.replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "cfzt.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: zero-knowledge
+  template:
+    metadata:
+      labels:
+        {{- include "cfzt.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: zero-knowledge
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: zk-proofs
+          image: "{{ .Values.zkProofs.image.repository }}:{{ .Values.zkProofs.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.zkProofs.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.zkProofs.service.port | default 8002 }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ .Values.zkProofs.grpc.port | default 50053 }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "cfzt.fullname" . }}-zk-proofs-config
+          {{- with .Values.zkProofs.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.zkProofs.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

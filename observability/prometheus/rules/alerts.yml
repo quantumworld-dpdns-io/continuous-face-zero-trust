@@ -1,0 +1,65 @@
+groups:
+  - name: quantum_alerts
+    rules:
+      - alert: QuantumBackendOffline
+        expr: cfzt_quantum_backend_health == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Quantum backend is offline"
+          description: "Quantum backend {{ $labels.backend }} has been offline for 5 minutes"
+
+      - alert: QuantumHighQBER
+        expr: cfzt_quantum_qber > 0.11
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Quantum QBER is above threshold"
+          description: "Quantum Bit Error Rate is {{ $value }}"
+
+      - alert: QuantumRNGLatencyHigh
+        expr: cfzt_quantum_rng_latency_ms > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Quantum RNG latency is high"
+          description: "Quantum RNG latency is {{ $value }}ms"
+
+  - name: auth_alerts
+    rules:
+      - alert: AuthFailureRateHigh
+        expr: rate(cfzt_auth_failures_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Auth failure rate is high"
+
+      - alert: SessionCountHigh
+        expr: cfzt_active_sessions > 10000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Active session count is very high"
+
+  - name: security_alerts
+    rules:
+      - alert: SuspiciousActivityDetected
+        expr: increase(cfzt_security_incidents_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Suspicious activity spike detected"
+
+      - alert: ZKProofFailureRate
+        expr: rate(cfzt_zk_proof_failures_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ZK proof failure rate is elevated"

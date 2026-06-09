@@ -1,0 +1,11 @@
+version: v1
+name: buf.build/quantumworld/cfzt
+deps: []
+lint:
+  use:
+    - DEFAULT
+    - COMMENTS
+    - UNARY_RPC
+breaking:
+  use:
+    - FILE

@@ -1,0 +1,38 @@
+replicaCount:
+  authApi: 2
+  faceMl: 2
+  zkProofs: 1
+  quantumRng: 1
+  pqcCrypto: 1
+  cacheStore: 1
+  vectorDb: 1
+  analytics: 1
+  edgeGateway: 2
+
+image:
+  repository: ghcr.io/quantumworld-dpdns-io/continuous-face-zero-trust
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+quantum:
+  enabled: false
+  backend: local_simulator
+
+redis:
+  enabled: true
+  replicas: 3
+  persistence: true
+
+qdrant:
+  enabled: true
+  persistence: true
+
+istio:
+  enabled: true
+  mtls: strict
+
+monitoring:
+  enabled: true
+  prometheus: true
+  grafana: true
+  jaeger: true

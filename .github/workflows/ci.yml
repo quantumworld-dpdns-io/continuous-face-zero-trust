@@ -2,14 +2,187 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  RUST_VERSION: "1.78"
+  NODE_VERSION: "22"
+  GO_VERSION: "1.22"
+
 jobs:
-  build:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.changes.outputs.python }}
+      rust: ${{ steps.changes.outputs.rust }}
+      typescript: ${{ steps.changes.outputs.typescript }}
+      go: ${{ steps.changes.outputs.go }}
+      proto: ${{ steps.changes.outputs.proto }}
+      infra: ${{ steps.changes.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            python:
+              - 'services/auth-api/**'
+              - 'services/face-ml/**'
+              - 'services/quantum-*/**'
+              - 'services/pqc-crypto/**'
+              - 'services/cache-store/**'
+              - 'services/vector-db/**'
+              - 'services/analytics/**'
+              - 'pkg/python/**'
+            rust:
+              - 'services/zk-proofs/**'
+              - 'pkg/rust/**'
+            typescript:
+              - 'services/edge-gateway/**'
+              - 'pkg/ts/**'
+            go:
+              - 'pkg/go/**'
+            proto:
+              - 'proto/**'
+            infra:
+              - 'infra/**'
+              - 'deploy/**'
+
+  lint-python:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.python == 'true' || needs.detect-changes.outputs.proto == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Placeholder build step
-        run: echo "Add your build/test commands here"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install ruff
+      - run: ruff check services/ pkg/python/
+      - run: ruff format --check services/ pkg/python/
+
+  test-python:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+        options: --health-cmd "redis-cli ping" --health-interval 5s
+      qdrant:
+        image: qdrant/qdrant:v1.9.2
+        ports: [6333:6333]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install uv && uv sync
+      - run: python -m pytest tests/ services/*/tests/ -x --tb=short
+
+  lint-rust:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: cd services/zk-proofs && cargo fmt --check
+      - run: cd services/zk-proofs && cargo clippy -- -D warnings
+
+  test-rust:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cd services/zk-proofs && cargo test
+      - run: cd pkg/rust && cargo test
+
+  lint-typescript:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.typescript == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: services/edge-gateway/package-lock.json
+      - run: cd services/edge-gateway && npm ci
+      - run: cd services/edge-gateway && npx biome check src/
+      - run: cd services/edge-gateway && npx tsc --noEmit
+
+  test-typescript:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.typescript == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: cd services/edge-gateway && npm ci
+      - run: cd services/edge-gateway && npx vitest run
+
+  lint-go:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - run: cd pkg/go && go vet ./...
+
+  test-go:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - run: cd pkg/go && go test ./...
+
+  protobuf-lint:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.proto == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-setup-action@v1
+      - run: buf lint proto/
+      - run: buf breaking --against 'https://github.com/${{ github.repository }}.git#branch=main'
+
+  build-docker:
+    needs: [lint-python, lint-rust, lint-typescript, test-python, test-rust]
+    if: always() && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [auth-api, face-ml, zk-proofs, quantum-rng, pqc-crypto, edge-gateway]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: cfzt/${{ matrix.service }}:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

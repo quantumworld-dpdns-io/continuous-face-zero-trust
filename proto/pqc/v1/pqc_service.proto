@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package cfzt.pqc.v1;
+
+import "common/v1/identifiers.proto";
+import "google/protobuf/timestamp.proto";
+
+service PQCService {
+  rpc EncapsulateKey(KEMEncapsulateRequest) returns (KEMEncapsulateResponse);
+  rpc DecapsulateKey(KEMDecapsulateRequest) returns (KEMDecapsulateResponse);
+  rpc Sign(SignRequest) returns (SignResponse);
+  rpc VerifySignature(VerifySignatureRequest) returns (VerifySignatureResponse);
+  rpc Encrypt(EncryptRequest) returns (EncryptResponse);
+  rpc Decrypt(DecryptRequest) returns (DecryptResponse);
+  rpc GetSupportedAlgorithms(AlgorithmsRequest) returns (AlgorithmsResponse);
+}
+
+enum PQCAlgorithm {
+  PQC_ALGORITHM_UNSPECIFIED = 0;
+  PQC_ALGORITHM_KYBER_512 = 1;
+  PQC_ALGORITHM_KYBER_768 = 2;
+  PQC_ALGORITHM_KYBER_1024 = 3;
+  PQC_ALGORITHM_DILITHIUM_2 = 4;
+  PQC_ALGORITHM_DILITHIUM_3 = 5;
+  PQC_ALGORITHM_DILITHIUM_5 = 6;
+  PQC_ALGORITHM_FALCON_512 = 7;
+  PQC_ALGORITHM_FALCON_1024 = 8;
+  PQC_ALGORITHM_SPHINCS_PLUS = 9;
+  PQC_ALGORITHM_BIKE = 10;
+  PQC_ALGORITHM_HQC = 11;
+  PQC_ALGORITHM_FRODO_KEM = 12;
+}
+
+message KEMEncapsulateRequest {
+  bytes public_key = 1;
+  PQCAlgorithm algorithm = 2;
+}
+
+message KEMEncapsulateResponse {
+  bytes ciphertext = 1;
+  bytes shared_secret = 2;
+  PQCAlgorithm algorithm = 3;
+  int64 time_ms = 4;
+}
+
+message KEMDecapsulateRequest {
+  bytes ciphertext = 1;
+  bytes secret_key = 2;
+  PQCAlgorithm algorithm = 3;
+}
+
+message KEMDecapsulateResponse {
+  bytes shared_secret = 1;
+  bool valid = 2;
+  int64 time_ms = 3;
+}
+
+message SignRequest {
+  bytes message = 1;
+  bytes secret_key = 2;
+  PQCAlgorithm algorithm = 3;
+}
+
+message SignResponse {
+  bytes signature = 1;
+  PQCAlgorithm algorithm = 2;
+  int64 time_ms = 3;
+  google.protobuf.Timestamp signed_at = 4;
+}
+
+message VerifySignatureRequest {
+  bytes message = 1;
+  bytes signature = 2;
+  bytes public_key = 3;
+  PQCAlgorithm algorithm = 4;
+}
+
+message VerifySignatureResponse {
+  bool valid = 1;
+  PQCAlgorithm algorithm = 2;
+  int64 time_ms = 3;
+}
+
+message EncryptRequest {
+  bytes plaintext = 1;
+  bytes public_key = 2;
+  PQCAlgorithm algorithm = 3;
+}
+
+message EncryptResponse {
+  bytes ciphertext = 1;
+  int64 time_ms = 2;
+}
+
+message DecryptRequest {
+  bytes ciphertext = 1;
+  bytes secret_key = 2;
+  PQCAlgorithm algorithm = 3;
+}
+
+message DecryptResponse {
+  bytes plaintext = 1;
+  bool valid = 2;
+  int64 time_ms = 3;
+}
+
+message AlgorithmsRequest {}
+
+message AlgorithmsResponse {
+  repeated AlgorithmInfo algorithms = 1;
+}
+
+message AlgorithmInfo {
+  PQCAlgorithm algorithm = 1;
+  string name = 2;
+  string category = 3;
+  int32 security_level = 4;
+  int32 key_size_bytes = 5;
+  int32 ciphertext_size_bytes = 6;
+}

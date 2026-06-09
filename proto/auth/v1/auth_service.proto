@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package cfzt.auth.v1;
+
+import "common/v1/identifiers.proto";
+import "google/protobuf/timestamp.proto";
+
+service AuthService {
+  rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse);
+  rpc EnrollFace(EnrollFaceRequest) returns (EnrollFaceResponse);
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+  rpc VerifySession(VerifySessionRequest) returns (VerifySessionResponse);
+  rpc ContinuousVerify(stream VerifySignal) returns (stream VerifyDecision);
+}
+
+message AuthenticateRequest {
+  bytes face_image = 1;
+  DeviceID device_id = 2;
+  string platform = 3;
+  map<string, string> device_metadata = 4;
+}
+
+message AuthenticateResponse {
+  bool authenticated = 1;
+  string session_token = 2;
+  string refresh_token = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  RiskScore risk_score = 5;
+  LivenessResult liveness = 6;
+  ZKProofResult zk_proof = 7;
+}
+
+message EnrollFaceRequest {
+  repeated bytes face_images = 1;
+  UserID user_id = 2;
+  TenantID tenant_id = 3;
+  DeviceID device_id = 4;
+}
+
+message EnrollFaceResponse {
+  bool success = 1;
+  UUID enrollment_id = 2;
+  int32 face_count = 3;
+  google.protobuf.Timestamp enrolled_at = 4;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message RefreshTokenResponse {
+  string session_token = 2;
+  string refresh_token = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+message RevokeSessionRequest {
+  SessionID session_id = 1;
+  string reason = 2;
+}
+
+message RevokeSessionResponse {
+  bool revoked = 1;
+  google.protobuf.Timestamp revoked_at = 2;
+}
+
+message VerifySessionRequest {
+  SessionID session_id = 1;
+  DeviceID device_id = 2;
+}
+
+message VerifySessionResponse {
+  bool valid = 1;
+  string reason = 2;
+  google.protobuf.Timestamp verified_at = 3;
+}
+
+message VerifySignal {
+  oneof signal {
+    bytes face_frame = 1;
+    DeviceAttestation device_attestation = 2;
+  }
+}
+
+message VerifyDecision {
+  bool continue_session = 1;
+  RiskScore risk_score = 2;
+  string action = 3;
+  google.protobuf.Timestamp decided_at = 4;
+}
+
+message RiskScore {
+  float score = 1;
+  string level = 2;
+  repeated string factors = 3;
+}
+
+message LivenessResult {
+  bool passed = 1;
+  float confidence = 2;
+  repeated string checks = 3;
+  google.protobuf.Timestamp checked_at = 4;
+}
+
+message ZKProofResult {
+  bool valid = 1;
+  bytes proof = 2;
+  bytes verification_key = 3;
+  string circuit_id = 4;
+}
+
+message DeviceAttestation {
+  string platform = 1;
+  bytes attestation_data = 2;
+  bytes challenge = 3;
+}

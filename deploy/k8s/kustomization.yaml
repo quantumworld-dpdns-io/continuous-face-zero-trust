@@ -1,0 +1,33 @@
+name: Continuous Face Zero Trust
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - base/namespace.yaml
+  - base/configmap.yaml
+  - base/rbac.yaml
+  - base/networkpolicy.yaml
+  - auth-api/deployment.yaml
+  - auth-api/service.yaml
+  - face-ml/deployment.yaml
+  - face-ml/service.yaml
+  - zk-proofs/deployment.yaml
+  - zk-proofs/service.yaml
+  - quantum-rng/deployment.yaml
+  - quantum-rng/service.yaml
+  - pqc-crypto/deployment.yaml
+  - pqc-crypto/service.yaml
+  - cache-store/deployment.yaml
+  - cache-store/service.yaml
+  - vector-db/deployment.yaml
+  - vector-db/service.yaml
+  - analytics/deployment.yaml
+  - analytics/service.yaml
+  - edge-gateway/deployment.yaml
+  - edge-gateway/service.yaml
+  - edge-gateway/ingress.yaml
+  - redis/cluster.yaml
+  - qdrant/statefulset.yaml
+  - prometheus/namespace.yaml
+  - grafana/namespace.yaml

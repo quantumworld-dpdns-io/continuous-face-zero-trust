@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cfzt.fullname" . }}-edge-gateway
+  namespace: {{ include "cfzt.namespace" . }}
+  labels:
+    {{- include "cfzt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api-gateway
+spec:
+  type: {{ .Values.edgeGateway.service.type | default "LoadBalancer" }}
+  selector:
+    {{- include "cfzt.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: api-gateway
+  ports:
+    - name: http
+      port: {{ .Values.edgeGateway.service.port | default 80 }}
+      targetPort: http
+      protocol: TCP

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vector-db
+  namespace: cfzt
+  labels:
+    app: vector-db
+    component: vector-database
+spec:
+  type: ClusterIP
+  selector:
+    app: vector-db
+  ports:
+    - name: http
+      port: 8008
+      targetPort: 8008
+      protocol: TCP

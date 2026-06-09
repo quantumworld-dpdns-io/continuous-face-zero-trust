@@ -1,0 +1,52 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "cfzt-auth-api"
+    static_configs:
+      - targets: ["auth-api:8000"]
+    metrics_path: /metrics
+
+  - job_name: "cfzt-face-ml"
+    static_configs:
+      - targets: ["face-ml:8001"]
+    metrics_path: /metrics
+
+  - job_name: "cfzt-zk-proofs"
+    static_configs:
+      - targets: ["zk-proofs:8002"]
+    metrics_path: /metrics
+
+  - job_name: "cfzt-quantum-rng"
+    static_configs:
+      - targets: ["quantum-rng:8003"]
+    metrics_path: /metrics
+
+  - job_name: "cfzt-pqc-crypto"
+    static_configs:
+      - targets: ["pqc-crypto:8006"]
+    metrics_path: /metrics
+
+  - job_name: "cfzt-vector-db"
+    static_configs:
+      - targets: ["vector-db:8008"]
+    metrics_path: /metrics
+
+  - job_name: "cfzt-cache-store"
+    static_configs:
+      - targets: ["cache-store:8007"]
+    metrics_path: /metrics
+
+  - job_name: "cfzt-edge-gateway"
+    static_configs:
+      - targets: ["edge-gateway:8787"]
+    metrics_path: /metrics
+
+  - job_name: "cfzt-redis"
+    static_configs:
+      - targets: ["redis:6379"]
+
+  - job_name: "cfzt-qdrant"
+    static_configs:
+      - targets: ["qdrant:6333"]

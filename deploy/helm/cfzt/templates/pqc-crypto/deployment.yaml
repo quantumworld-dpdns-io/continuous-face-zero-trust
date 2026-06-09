@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cfzt.fullname" . }}-pqc-crypto
+  namespace: {{ include "cfzt.namespace" . }}
+  labels:
+    {{- include "cfzt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: post-quantum-crypto
+spec:
+  replicas: {{ .Values.pqcCrypto.replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "cfzt.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: post-quantum-crypto
+  template:
+    metadata:
+      labels:
+        {{- include "cfzt.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: post-quantum-crypto
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: pqc-crypto
+          image: "{{ .Values.pqcCrypto.image.repository }}:{{ .Values.pqcCrypto.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.pqcCrypto.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.pqcCrypto.service.port | default 8006 }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ .Values.pqcCrypto.grpc.port | default 50055 }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "cfzt.fullname" . }}-pqc-crypto-config
+          {{- with .Values.pqcCrypto.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.pqcCrypto.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

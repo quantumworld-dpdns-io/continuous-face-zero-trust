@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "cfzt.fullname" . }}-test-connection"
+  namespace: {{ include "cfzt.namespace" . }}
+  labels:
+    {{- include "cfzt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  containers:
+    - name: curl
+      image: curlimages/curl:latest
+      command:
+        - sh
+        - -c
+        - |
+          echo "Testing edge-gateway..."
+          curl -sf http://{{ include "cfzt.fullname" . }}-edge-gateway:{{ .Values.edgeGateway.service.port | default 80 }}/healthz || exit 1
+          echo "Testing auth-api..."
+          curl -sf http://{{ include "cfzt.fullname" . }}-auth-api:{{ .Values.authApi.service.port | default 8000 }}/healthz || exit 1
+          echo "All tests passed!"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+  restartPolicy: Never

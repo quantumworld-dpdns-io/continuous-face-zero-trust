@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cfzt.fullname" . }}-auth-api
+  namespace: {{ include "cfzt.namespace" . }}
+  labels:
+    {{- include "cfzt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: authentication
+spec:
+  replicas: {{ .Values.authApi.replicas | default 2 }}
+  selector:
+    matchLabels:
+      {{- include "cfzt.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: authentication
+  template:
+    metadata:
+      labels:
+        {{- include "cfzt.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: authentication
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: auth-api
+          image: "{{ .Values.authApi.image.repository }}:{{ .Values.authApi.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.authApi.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.authApi.service.port | default 8000 }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ .Values.authApi.grpc.port | default 50051 }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "cfzt.fullname" . }}-auth-api-config
+          {{- with .Values.authApi.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.authApi.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

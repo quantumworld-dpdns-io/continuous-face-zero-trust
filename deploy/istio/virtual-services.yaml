@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: auth-api
+  namespace: cfzt
+spec:
+  hosts:
+    - auth-api
+  http:
+    - route:
+        - destination:
+            host: auth-api
+            port:
+              number: 8000
+      timeout: 10s
+      retries:
+        attempts: 3
+        perTryTimeout: 2s

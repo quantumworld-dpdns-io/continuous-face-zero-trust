@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: face-ml
+  namespace: cfzt
+  labels:
+    app: face-ml
+    component: ml-inference
+spec:
+  type: ClusterIP
+  selector:
+    app: face-ml
+  ports:
+    - name: http
+      port: 8001
+      targetPort: 8001
+      protocol: TCP
+    - name: grpc
+      port: 50052
+      targetPort: 50052
+      protocol: TCP

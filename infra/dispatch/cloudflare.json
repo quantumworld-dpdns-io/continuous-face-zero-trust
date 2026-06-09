@@ -1,0 +1,17 @@
+{
+  "provider": "cloudflare",
+  "services": ["edge-gateway"],
+  "bindings": {
+    "workers": true,
+    "kv": true,
+    "d1": true,
+    "r2": true,
+    "durable_objects": true,
+    "vectorize": true,
+    "ai": true,
+    "queues": true
+  },
+  "deploy_command": "wrangler deploy",
+  "environment": "production",
+  "routes": ["cfzt.example.com/*"]
+}

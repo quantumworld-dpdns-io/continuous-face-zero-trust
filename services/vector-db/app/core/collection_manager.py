@@ -1,0 +1,40 @@
+"""Qdrant collection manager for face embeddings."""
+from __future__ import annotations
+
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
+
+
+class CollectionManager:
+    def __init__(self, url: str = "http://localhost:6333"):
+        self.client = QdrantClient(url=url)
+
+    async def ensure_collection(self, name: str, dimension: int = 512):
+        collections = self.client.get_collections().collections
+        existing = [c.name for c in collections]
+        if name not in existing:
+            self.client.create_collection(
+                collection_name=name,
+                vectors_config=VectorParams(size=dimension, distance=Distance.COSINE),
+            )
+
+    async def insert_embedding(self, collection: str, point_id: int, embedding: list[float], metadata: dict | None = None):
+        payload = metadata or {}
+        self.client.upsert(
+            collection_name=collection,
+            points=[PointStruct(id=point_id, vector=embedding, payload=payload)],
+        )
+
+    async def search(self, collection: str, query_embedding: list[float], top_k: int = 5, filters: dict | None = None):
+        query_filter = None
+        if filters:
+            conditions = [FieldCondition(key=k, match=MatchValue(value=v)) for k, v in filters.items()]
+            query_filter = Filter(must=conditions)
+
+        results = self.client.search(
+            collection_name=collection,
+            query_vector=query_embedding,
+            limit=top_k,
+            query_filter=query_filter,
+        )
+        return [{"id": r.id, "score": r.score, "payload": r.payload} for r in results]

@@ -1,0 +1,39 @@
+name: cfzt-infra
+runtime: python
+description: Continuous Face Zero Trust Infrastructure
+template:
+  config:
+    aws:region:
+      type: string
+      default: us-west-2
+    cfzt:environment:
+      type: string
+      default: development
+      enum:
+        - development
+        - staging
+        - production
+    cfzt:cluster_name:
+      type: string
+      default: cfzt-cluster
+    cfzt:vpc_cidr:
+      type: string
+      default: 10.0.0.0/16
+    cfzt:k8s_version:
+      type: string
+      default: "1.28"
+    cfzt:redis_node_type:
+      type: string
+      default: cache.r6g.large
+    cfzt:redis_num_nodes:
+      type: integer
+      default: 3
+    cfzt:qdrant_cloud_api_key:
+      type: string
+      secret: true
+    cfzt:enable_quantum:
+      type: boolean
+      default: false
+    cfzt:domain_name:
+      type: string
+      default: cfzt.example.com
