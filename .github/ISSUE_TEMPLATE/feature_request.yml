@@ -1,0 +1,33 @@
+name: Feature Request
+description: Suggest a new feature
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature Description
+      description: Describe the feature you'd like
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why is this feature needed?
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - quantum-computing
+        - post-quantum-crypto
+        - zero-knowledge-proofs
+        - face-ml
+        - security
+        - observability
+        - infrastructure
+        - other
+    validations:
+      required: true
