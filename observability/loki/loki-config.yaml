@@ -1,0 +1,164 @@
+auth_enabled: false
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: info
+common:
+  path_prefix: /loki
+  storage:
+    s3:
+      endpoint: s3.us-west-2.amazonaws.com
+      region: us-west-2
+      bucket: cfzt-production-loki
+      insecure: false
+      sse_config:
+        type: SSE-KMS
+        kms_key_id: ""
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 3
+  ring:
+    kvstore:
+      store: memberlist
+    instance_addr: 127.0.0.1
+    instance_port: 9096
+memberlist:
+  join_members:
+    - loki-0.loki-headless.monitoring.svc.cluster.local
+    - loki-1.loki-headless.monitoring.svc.cluster.local
+    - loki-2.loki-headless.monitoring.svc.cluster.local
+ingester:
+  lifecycler:
+    ring:
+      kvstore:
+        store: memberlist
+      replication_factor: 3
+    join_after: 10s
+    observe_period: 0s
+    min_ready_duration: 0s
+  chunk_idle_period: 5m
+  chunk_retain_period: 30s
+  chunk_target_size: 1536000
+  chunk_max_age: 1h
+  max_transfer_retries: 10
+  wal:
+    enabled: true
+    dir: /loki/wal
+    flush_on_shutdown: true
+schema_config:
+  configs:
+    - from: "2024-01-01"
+      store: tsdb
+      object_store: s3
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /loki/tsdb-index
+    cache_location: /loki/tsdb-cache
+  s3:
+    endpoint: s3.us-west-2.amazonaws.com
+    region: us-west-2
+    bucket: cfzt-production-loki
+    insecure: false
+    sse_config:
+      type: SSE-KMS
+      kms_key_id: ""
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+  delete_request_store: s3
+  compactor_interval: 10m
+  cleanup_encoder: 2
+  delete_request_cancel_period: 10m
+  max_compaction_parallelism: 2
+  delete_request_store: s3
+limits_config:
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  max_query_length: 721h
+  max_query_parallelism: 32
+  ingestion_rate_mb: 16
+  ingestion_burst_size_mb: 32
+  per_stream_rate_limit: 5MB
+  per_stream_rate_limit_burst: 15MB
+  max_entries_limit_per_query: 10000
+  max_line_size: 256kb
+  ingestion_rate: 10000
+  ingestion_burst: 20000
+  max_cache_freshness_per_query: 10m
+  split_queries_by_interval: 15m
+  max_query_series: 100000
+  max_queries_per_chunk: 20
+  max_query_parallelism: 32
+  min_sharding_lookback: 0s
+  max_streams_per_user: 0
+  max_global_stream_per_user: 0
+  max_line_size: 0
+  disabled_features: []
+  allow_structured_metadata: false
+  max_structured_metadata_entries: 0
+ruler:
+  storage:
+    type: s3
+    s3:
+      endpoint: s3.us-west-2.amazonaws.com
+      region: us-west-2
+      bucket: cfzt-production-loki-ruler
+      insecure: false
+      sse_config:
+        type: SSE-KMS
+        kms_key_id: ""
+    local:
+      directory: /loki/rules
+  rule_path: /loki/rules-temp
+  alertmanager_url: http://alertmanager.monitoring.svc.cluster.local:9093
+  ring:
+    kvstore:
+      store: memberlist
+  enable_api: true
+  evaluation_interval: 1m
+  reservation_wait: 10s
+  remote_write:
+    enabled: false
+    client:
+      url: http://prometheus.monitoring.svc.cluster.local:9090/api/v1/write
+query_range:
+  align_queries_with_step: true
+  results_cache:
+    cache: embedded_cache
+    embedded_cache:
+      enabled: true
+      max_size_mb: 100
+      ttl: 5m
+frontend:
+  log_queries_longer_than: 0s
+  tail_proxy_url: http://querier.monitoring.svc.cluster.local:3100
+  max_outstanding_per_tenant: 1024
+  split_queries_by_interval: 30m
+  scheduler_address: query-scheduler.monitoring.svc.cluster.local:9096
+querier:
+  engine:
+    timeout: 5m
+  max_concurrent: 10
+  query_timeout: 2m
+  tail_max_duration: 1h
+  max_streams_matchers_per_query: 1000
+  max_concurrent_tenant_queries: 10
+query_scheduler:
+  max_outstanding_requests_per_tenant: 100
+  grpc_client_config:
+    max_recv_msg_size: 104857600
+  use_scheduler_ring: true
+analytics:
+  reporting_enabled: false
+overrides:
+  per_tenant_override_config: /loki/overrides.yaml
+metrics_range:
+  min_step: 1m
