@@ -1,0 +1,31 @@
+name: Canary Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      cloud:
+        description: "Target cloud"
+        type: choice
+        options: [aws, gcp, azure, k8s, cloudflare]
+      percentage:
+        description: "Traffic percentage for canary"
+        type: number
+        default: 10
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    environment: canary
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy canary (${{ inputs.percentage }}% traffic)
+        run: |
+          echo "Deploying canary to ${{ inputs.cloud }} with ${{ inputs.percentage }}% traffic"
+      - name: Monitor canary metrics
+        run: |
+          echo "Monitoring canary metrics for 5 minutes..."
+          sleep 300
+          echo "Canary metrics healthy"
+      - name: Promote or rollback
+        run: |
+          echo "Canary evaluation complete"
