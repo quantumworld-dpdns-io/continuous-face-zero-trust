@@ -1,0 +1,198 @@
+apiVersion: 1
+
+providers:
+  - name: "Default"
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards/default
+      foldersFromFilesStructure: false
+
+  - name: "Face ML"
+    orgId: 1
+    folder: "face-ml"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards/face-ml
+
+  - name: "Quantum ML"
+    orgId: 1
+    folder: "quantum-ml"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards/quantum-ml
+
+  - name: "Zero Trust"
+    orgId: 1
+    folder: "zero-trust"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards/zero-trust
+
+  - name: "Security"
+    orgId: 1
+    folder: "security"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards/security
+
+  - name: "Infrastructure"
+    orgId: 1
+    folder: "infrastructure"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards/infrastructure
+
+alerting:
+  enabled: true
+  execute_alerts: true
+
+auth:
+  disable_login_form: false
+  disable_signout_menu: false
+  login_maximum_inactive_lifetime_duration: 30m
+  login_maximum_lifetime_duration: 12h
+
+auth.anonymous:
+  enabled: false
+  org_name: Main Org.
+  org_role: Viewer
+
+auth.basic:
+  enabled: true
+
+auth.proxy:
+  enabled: false
+  header_name: X-WEBAUTH-USER
+  header_property: username
+  auto_sign_up: true
+  sync_ttl: 60
+  whitelist: ""
+  enable_login_token: false
+
+cronjobs:
+  enabled: true
+
+dashboard:
+  providers:
+    - name: "default"
+      orgId: 1
+      folder: ""
+      type: file
+      disableDeletion: false
+      editable: true
+      updateIntervalSeconds: 30
+      allowUiUpdates: true
+
+datasources:
+  configs:
+    apiVersion: 1
+    datasources: []
+
+features:
+  - accessControlEnabled
+  - correlations
+
+frontend:
+  enabled: true
+
+help:
+  enabled: true
+
+log:
+  mode: console
+  level: info
+
+metrics:
+  enabled: true
+  push_interval: 10s
+  basic_authentication:
+    username: admin
+    password: admin
+
+panels:
+  disable_sanitize_html: false
+
+plugins:
+  allow_loading_unsigned_plugins: []
+  enable_alpha: false
+
+profile:
+  enabled: true
+
+reporting:
+  enabled: false
+
+security:
+  allow_embedding: false
+  cookie_secure: true
+  cookie_samesite: lax
+  content_security_policy: true
+  content_security_policy_template: |
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: blob:;
+    font-src 'self';
+    connect-src 'self' wss://$$__grafana_domain__$$;
+    form-action 'self';
+    frame-ancestors 'none';
+    base-uri 'self';
+    font-src 'self';
+
+session:
+  provider: memory
+  provider_config: ""
+  cookie_name: grafana_session
+  cookie_secure: true
+  cookie_samesite: lax
+  session_life_time: 86400
+  gc_interval: 3600
+
+smtp:
+  enabled: false
+  address: localhost:25
+  from_name: Grafana
+  from_address: admin@cfzt.example.com
+
+users:
+  allow_sign_up: false
+  auto_assign_org: true
+  auto_assign_org_role: Viewer
+
+unified_alerting:
+  enabled: true
+  alertmanager:
+    enable_api: true
+    max_attempts: 3
+    min_interval_seconds: 10
+    notification_channels_limit: 5
+  evaluation_timeout: 30s
+  max_attempts: 3
+  min_interval_seconds: 10
+  notification_channels_limit: 5
+  state_history:
+    enabled: true
+    internal_database:
+      max_states: 1000
+
+live:
+  enabled: true
+  max_connections: 300
+  allowed_origins: "*"
+
+explore:
+  enabled: true
