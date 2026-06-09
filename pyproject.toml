@@ -1,0 +1,23 @@
+[project]
+name = "continuous-face-zero-trust"
+version = "0.1.0"
+description = "Privacy-preserving continuous face-based zero-trust workspace authentication"
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "MIT"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "services/*/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-ra -q --strict-markers --tb=short"
+markers = [
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "quantum: marks tests requiring quantum backend",
+  "gpu: marks tests requiring GPU",
+  "security: marks security tests",
+  "owasp: marks OWASP Top 10 tests",
+  "integration: marks integration tests",
+  "performance: marks performance benchmarks",
+]
