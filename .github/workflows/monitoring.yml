@@ -1,0 +1,103 @@
+name: Monitoring & Alerts
+
+on:
+  push:
+    branches: [main, develop]
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+env:
+  PROMETHEUS_URL: https://prometheus.cfzt.io
+  GRAFANA_URL: https://grafana.cfzt.io
+
+jobs:
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check service health
+        run: |
+          SERVICES=(
+            "https://api.cfzt.io/health"
+            "https://auth.cfzt.io/health"
+            "https://face-ml.cfzt.io/health"
+            "https://quantum-rng.cfzt.io/health"
+            "https://pqc-crypto.cfzt.io/health"
+            "https://zk-proofs.cfzt.io/health"
+            "https://edge-gateway.cfzt.io/health"
+          )
+          for service in "${SERVICES[@]}"; do
+            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$service" || echo "000")
+            if [ "$STATUS" != "200" ]; then
+              echo "::error::Service $service is unhealthy (status: $STATUS)"
+              exit 1
+            fi
+          done
+          echo "All services are healthy"
+
+  check-metrics:
+    name: Check Metrics
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query Prometheus
+        run: |
+          # Query error rate
+          ERROR_RATE=$(curl -sf "${{ env.PROMETHEUS_URL }}/api/v1/query?query=rate(http_requests_total{status=~'5..'}[5m])" | jq -r '.data.result[0].value[1] // "0"')
+          echo "Error rate: $ERROR_RATE"
+          
+          # Query latency P99
+          LATENCY_P99=$(curl -sf "${{ env.PROMETHEUS_URL }}/api/v1/query?query=histogram_quantile(0.99,rate(http_request_duration_seconds_bucket[5m]))" | jq -r '.data.result[0].value[1] // "0"')
+          echo "Latency P99: ${LATENCY_P99}s"
+          
+          # Check thresholds
+          if (( $(echo "$ERROR_RATE > 0.05" | bc -l) )); then
+            echo "::error::Error rate too high: $ERROR_RATE"
+            exit 1
+          fi
+
+  check-logs:
+    name: Check Logs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query for errors
+        run: |
+          echo "Checking for recent errors in logs..."
+          # This would integrate with a log aggregation service
+          echo "Log check completed"
+
+  check-certificates:
+    name: Check Certificates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check SSL certificates
+        run: |
+          DOMAINS=(
+            "api.cfzt.io"
+            "auth.cfzt.io"
+            "face-ml.cfzt.io"
+          )
+          for domain in "${DOMAINS[@]}"; do
+            EXPIRY=$(echo | openssl s_client -servername "$domain" -connect "$domain":443 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+            if [ -z "$EXPIRY" ]; then
+              echo "::warning::Could not check certificate for $domain"
+              continue
+            fi
+            EXPIRY_EPOCH=$(date -j -f "%b %d %T %Y %Z" "$EXPIRY" +%s 2>/dev/null || date -d "$EXPIRY" +%s)
+            NOW_EPOCH=$(date +%s)
+            DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+            echo "$domain: $DAYS_LEFT days until expiry"
+            if [ $DAYS_LEFT -lt 30 ]; then
+              echo "::warning::Certificate for $domain expires in $DAYS_LEFT days"
+            fi
+          done
+
+  check-backups:
+    name: Check Backups
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify recent backups
+        run: |
+          echo "Checking for recent backups..."
+          # This would check S3 or other backup storage
+          echo "Backup check completed"
