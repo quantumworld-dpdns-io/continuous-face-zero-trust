@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cfzt.fullname" . }}-face-ml
+  namespace: {{ include "cfzt.namespace" . }}
+  labels:
+    {{- include "cfzt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ml-inference
+spec:
+  type: {{ .Values.faceMl.service.type | default "ClusterIP" }}
+  selector:
+    {{- include "cfzt.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ml-inference
+  ports:
+    - name: http
+      port: {{ .Values.faceMl.service.port | default 8001 }}
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: {{ .Values.faceMl.grpc.port | default 50052 }}
+      targetPort: grpc
+      protocol: TCP
