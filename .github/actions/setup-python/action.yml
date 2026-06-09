@@ -1,0 +1,16 @@
+name: Setup Python
+description: Setup Python environment with caching
+inputs:
+  python-version:
+    description: Python version
+    required: false
+    default: '3.12'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+    - run: pip install uv ruff mypy pytest
+      shell: bash
